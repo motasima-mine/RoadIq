@@ -426,6 +426,38 @@ html, body {
 .savings-row:last-child { border-bottom: none; font-weight: 800; color: #1c1c1e; font-size: 0.82rem; }
 .savings-row .green { color: #30d158; font-weight: 800; }
 
+/* ── Maintenance alerts ── */
+.maint-badge {
+  font-size: 0.58rem; font-weight: 700; padding: 2px 7px;
+  border-radius: 8px; white-space: nowrap;
+}
+.maint-critical { background: #fee2e2; color: #DC1730; }
+.maint-warning  { background: #fff3cd; color: #92400e; }
+.maint-ok       { background: #d1fae5; color: #065f46; }
+.maint-bar-row  { display: flex; gap: 6px; margin-top: 5px; flex-wrap: wrap; }
+.maint-alert-banner {
+  background: #fff3cd; border-left: 4px solid #ff9500;
+  border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
+  font-size: 0.75rem; color: #92400e;
+}
+.maint-alert-banner.critical {
+  background: #fee2e2; border-left-color: #DC1730; color: #991b1b;
+}
+
+/* ── Rest POI section ── */
+.poi-section { margin-top: 14px; }
+.poi-category { margin-bottom: 14px; }
+.poi-cat-title { font-size: 0.7rem; font-weight: 800; color: #636366;
+  text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px; }
+.poi-card {
+  background: #fff; border-radius: 10px; padding: 9px 12px;
+  margin-bottom: 6px; display: flex; align-items: center; gap: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.poi-icon { font-size: 1.2rem; flex-shrink: 0; }
+.poi-name { font-size: 0.8rem; font-weight: 700; color: #1c1c1e; }
+.poi-dist { font-size: 0.65rem; color: #8e8e93; margin-top: 1px; }
+
 /* ── Loyalty badge ── */
 .loyalty-banner {
   background: linear-gradient(135deg, #1c1c1e, #3a3a3c);
@@ -470,6 +502,9 @@ html, body {
         <span class="badge" id="loyalty-badge">🏆 Platinum</span>
       </div>
     </div>
+
+    <!-- Maintenance alert (shown when driver has alerts) -->
+    <div id="maint-home-alert" style="display:none"></div>
 
     <!-- Fuel bar -->
     <div class="fuel-card">
@@ -688,6 +723,13 @@ html, body {
       <div style="font-size:0.7rem;color:#636366;margin-bottom:10px">Tap any stop to ask RoadIQ if it's right for you</div>
       <div id="all-stops-list"></div>
 
+      <!-- Rest POI (shown when HOS >= 4h rest needed) -->
+      <div id="rest-poi-section" style="display:none">
+        <div class="section-title" style="margin-top:4px">🛏️ Rest Stop Nearby</div>
+        <div style="font-size:0.7rem;color:#636366;margin-bottom:10px">Places near your stop for a 4-5 hour rest</div>
+        <div id="rest-poi-list" class="poi-section"></div>
+      </div>
+
       <button class="btn-secondary" style="margin-top:4px" onclick="switchTab('chat')">💬 Ask RoadIQ about this route</button>
     </div>
   </div><!-- /plan -->
@@ -710,6 +752,7 @@ html, body {
     <div class="fleet-kpi-row" id="fleet-kpis">
       <div class="fleet-kpi"><span class="kpi-val" id="kpi-total">—</span><span class="kpi-lbl">Drivers</span></div>
       <div class="fleet-kpi risk"><span class="kpi-val" id="kpi-risk">—</span><span class="kpi-lbl">Fuel Risk</span></div>
+      <div class="fleet-kpi risk"><span class="kpi-val" id="kpi-maint">—</span><span class="kpi-lbl">Maint. Alert</span></div>
       <div class="fleet-kpi"><span class="kpi-val" id="kpi-route">—</span><span class="kpi-lbl">On Route</span></div>
     </div>
     <div id="fleet-list">
@@ -791,42 +834,156 @@ function updateHOS(val) {
 }
 
 // ── Fleet Manager ─────────────────────────────────────────────────────────────
+let _maintData = {};
+
 function loadFleet() {
   fleetLoaded = true;
-  fetch('/api/fleet')
-    .then(r => r.json())
-    .then(data => {
-      document.getElementById('kpi-total').textContent = data.summary.total;
-      document.getElementById('kpi-risk').textContent  = data.summary.at_risk;
-      document.getElementById('kpi-route').textContent = data.summary.on_route;
+  // Load fleet + maintenance in parallel
+  Promise.all([
+    fetch('/api/fleet').then(r => r.json()),
+    fetch('/api/maintenance').then(r => r.json()).catch(() => ({}))
+  ]).then(([data, maint]) => {
+    _maintData = maint;
 
-      const list = document.getElementById('fleet-list');
-      list.innerHTML = data.drivers.map(d => {
-        const initials = d.name.split(' ').map(n=>n[0]).join('').slice(0,2);
-        const fuelColor = d.fuel_pct < 25 ? '#DC1730' : d.fuel_pct < 50 ? '#ff9500' : '#30d158';
-        const isRisk = d.status === 'fuel_risk';
-        return `
-          <div class="driver-row">
-            <div class="driver-avatar ${isRisk ? '' : 'ok'}">${initials}</div>
-            <div class="driver-info">
-              <div class="driver-name">${d.name}</div>
-              <div class="driver-route">${d.route}</div>
-              <div class="driver-fuel-bar">
-                <div class="driver-fuel-fill" style="width:${d.fuel_pct}%;background:${fuelColor}"></div>
-              </div>
+    document.getElementById('kpi-total').textContent = data.summary.total;
+    document.getElementById('kpi-risk').textContent  = data.summary.at_risk;
+    document.getElementById('kpi-route').textContent = data.summary.on_route;
+
+    // Maintenance KPI — count drivers with any alert
+    const maintCount = Object.values(maint).filter(m => m.has_warning).length;
+    document.getElementById('kpi-maint').textContent = maintCount;
+
+    const list = document.getElementById('fleet-list');
+    list.innerHTML = data.drivers.map(d => {
+      const initials = d.name.split(' ').map(n=>n[0]).join('').slice(0,2);
+      const fuelColor = d.fuel_pct < 25 ? '#DC1730' : d.fuel_pct < 50 ? '#ff9500' : '#30d158';
+      const isRisk = d.status === 'fuel_risk';
+      const m = maint[String(d.id)] || {};
+
+      // Maintenance badges for this driver
+      const maintBadges = [];
+      if (m.def_pct < 20)        maintBadges.push(`<span class="maint-badge maint-critical">🧪 DEF ${m.def_pct}%</span>`);
+      else if (m.def_pct < 40)   maintBadges.push(`<span class="maint-badge maint-warning">🧪 DEF ${m.def_pct}%</span>`);
+      if (m.tire_psi_pct < 92)   maintBadges.push(`<span class="maint-badge maint-warning">🔧 Tires</span>`);
+      if (m.oil_life_pct < 15)   maintBadges.push(`<span class="maint-badge maint-critical">🛢️ Oil ${m.oil_life_pct}%</span>`);
+      else if (m.oil_life_pct < 30) maintBadges.push(`<span class="maint-badge maint-warning">🛢️ Oil ${m.oil_life_pct}%</span>`);
+      if (m.miles_to_service < 1000) maintBadges.push(`<span class="maint-badge maint-warning">🔩 Service ${m.miles_to_service}mi</span>`);
+
+      const hasMaint = maintBadges.length > 0;
+      return `
+        <div class="driver-row" onclick="showDriverMaint(${d.id})" style="cursor:pointer">
+          <div class="driver-avatar ${isRisk ? '' : 'ok'}">${initials}</div>
+          <div class="driver-info">
+            <div class="driver-name">${d.name}</div>
+            <div class="driver-route">${d.route}</div>
+            <div class="driver-fuel-bar" style="margin-bottom:${hasMaint?'4px':'0'}">
+              <div class="driver-fuel-fill" style="width:${d.fuel_pct}%;background:${fuelColor}"></div>
             </div>
-            <div style="text-align:right;flex-shrink:0">
-              <div class="driver-badge ${isRisk ? 'risk' : 'ok'}">${isRisk ? '⚠️ Fuel Risk' : '✅ On Track'}</div>
-              <div style="font-size:0.6rem;color:#8e8e93;margin-top:4px">${d.loyalty_tier || 'Standard'}</div>
-              <div style="font-size:0.6rem;color:#636366">${d.fuel_miles} mi left</div>
-            </div>
-          </div>`;
+            ${hasMaint ? `<div class="maint-bar-row">${maintBadges.join('')}</div>` : ''}
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div class="driver-badge ${isRisk ? 'risk' : 'ok'}">${isRisk ? '⚠️ Fuel' : '✅ OK'}</div>
+            <div style="font-size:0.6rem;color:#8e8e93;margin-top:4px">${d.loyalty_tier||'Standard'}</div>
+            <div style="font-size:0.6rem;color:#636366">${d.fuel_miles}mi left</div>
+          </div>
+        </div>`;
+    }).join('');
+  }).catch(() => {
+    document.getElementById('fleet-list').innerHTML =
+      '<div style="text-align:center;padding:30px;color:#DC1730;font-size:0.8rem">Could not load fleet data.</div>';
+  });
+}
+
+// ── Driver maintenance detail (tapped a driver row) ───────────────────────────
+function showDriverMaint(driverId) {
+  const m = _maintData[String(driverId)];
+  if (!m || !m.has_warning) return;
+  const lines = m.alerts.map(a =>
+    `<div class="maint-alert-banner ${a.severity === 'critical' ? 'critical' : ''}">
+      ${a.severity === 'critical' ? '🚨' : '⚠️'} <strong>${a.type}</strong> — ${a.msg}
+    </div>`
+  ).join('');
+  document.getElementById('advice-stop-name').textContent = 'Truck Maintenance Alerts';
+  document.getElementById('advice-verdict').className = 'advice-verdict';
+  document.getElementById('advice-verdict').innerHTML = lines ||
+    '<span style="color:#30d158">✅ No maintenance issues</span>';
+  document.getElementById('advice-stop-pills').innerHTML = `
+    <span class="pill">🧪 DEF ${m.def_pct}%</span>
+    <span class="pill">🛢️ Oil ${m.oil_life_pct}%</span>
+    <span class="pill">🔧 Tires ${m.tire_psi_pct}%</span>
+    <span class="pill">🔩 ${(m.miles_to_service||0).toLocaleString()}mi to service</span>`;
+  document.getElementById('advice-overlay').classList.add('open');
+}
+
+// ── Load maintenance for home screen (demo driver id=7) ───────────────────────
+function loadHomeMaintenance() {
+  fetch('/api/maintenance?driver_id=7')
+    .then(r => r.json())
+    .then(m => {
+      const el = document.getElementById('maint-home-alert');
+      if (!m.has_warning) { el.style.display = 'none'; return; }
+      const topAlert = m.alerts[0];
+      el.style.display = 'block';
+      el.innerHTML = `
+        <div class="maint-alert-banner ${topAlert.severity === 'critical' ? 'critical' : ''}" style="margin-bottom:10px">
+          ${topAlert.severity === 'critical' ? '🚨' : '⚠️'} <strong>Truck Maintenance</strong> — ${topAlert.msg}
+          ${m.alerts.length > 1 ? `<span style="margin-left:6px;opacity:0.7">+${m.alerts.length-1} more</span>` : ''}
+        </div>`;
+    }).catch(() => {});
+}
+
+// ── Rest POI ──────────────────────────────────────────────────────────────────
+const POI_ICONS = { grocery:'🛒', laundry:'👕', pharmacy:'💊', gym:'🏋️', library:'📚', food:'🍔' };
+const POI_LABELS = { grocery:'Grocery', laundry:'Laundry', pharmacy:'Pharmacy', gym:'Gym / Fitness', library:'Library', food:'Food & Dining' };
+
+function loadRestPOI(stops) {
+  // Only show if HOS slider >= 4h (rest needed)
+  const hosVal = parseFloat(document.getElementById('hos-slider').value) || 0;
+  const poiSection = document.getElementById('rest-poi-section');
+  if (hosVal < 4 || !stops || !stops.length) { poiSection.style.display = 'none'; return; }
+
+  // Use first chosen stop coords, or first stop with coords
+  const stop = stops.find(s => s.is_chosen && s.lat && s.lon) ||
+               stops.find(s => s.lat && s.lon);
+  if (!stop) { poiSection.style.display = 'none'; return; }
+
+  poiSection.style.display = 'block';
+  document.getElementById('rest-poi-list').innerHTML =
+    '<div style="color:#8e8e93;font-size:0.75rem;padding:8px 0"><span class="spinner"></span> Finding nearby places…</div>';
+
+  fetch('/api/poi', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ lat: stop.lat, lon: stop.lon, radius_m: 4000 })
+  })
+  .then(r => r.json())
+  .then(data => {
+    const poi = data.poi || {};
+    const cats = Object.keys(poi).filter(c => poi[c] && poi[c].length);
+    if (!cats.length) {
+      document.getElementById('rest-poi-list').innerHTML =
+        '<div style="color:#8e8e93;font-size:0.75rem;padding:8px 0">No nearby places found within 4km of this stop.</div>';
+      return;
+    }
+    document.getElementById('rest-poi-list').innerHTML = cats.map(cat => {
+      const places = poi[cat].slice(0, 3);
+      const cards = places.map(p => {
+        const distStr = p.dist_m < 1000 ? `${p.dist_m}m away` : `${(p.dist_m/1000).toFixed(1)}km away`;
+        return `<div class="poi-card">
+          <div class="poi-icon">${POI_ICONS[cat]||'📍'}</div>
+          <div><div class="poi-name">${p.name}</div><div class="poi-dist">${distStr}</div></div>
+        </div>`;
       }).join('');
-    })
-    .catch(() => {
-      document.getElementById('fleet-list').innerHTML =
-        '<div style="text-align:center;padding:30px;color:#DC1730;font-size:0.8rem">Could not load fleet data.</div>';
-    });
+      return `<div class="poi-category">
+        <div class="poi-cat-title">${POI_LABELS[cat]||cat}</div>
+        ${cards}
+      </div>`;
+    }).join('');
+  })
+  .catch(() => {
+    document.getElementById('rest-poi-list').innerHTML =
+      '<div style="color:#8e8e93;font-size:0.75rem;padding:8px 0">Could not load nearby places.</div>';
+  });
 }
 
 // ── Map ───────────────────────────────────────────────────────────────────────
@@ -1096,6 +1253,9 @@ function renderTrip(data) {
   // All stops picker
   renderAllStops(data);
 
+  // Rest POI (only when HOS >= 4h)
+  loadRestPOI(data.all_stops || []);
+
   document.getElementById('plan-results').style.display = 'block';
   document.getElementById('plan-results').scrollIntoView({ behavior: 'smooth' });
 }
@@ -1278,7 +1438,7 @@ function itinStop(type, icon, name, city, meta, pills, showLine = true) {
     </div>`;
 }
 
-// ── Load driver data ──────────────────────────────────────────────────────────
+// ── Load driver data + maintenance on startup ─────────────────────────────────
 fetch('/api/driver')
   .then(r => r.json())
   .then(d => {
@@ -1294,6 +1454,9 @@ fetch('/api/driver')
     document.getElementById('alert-sub').textContent =
       'Based on your route to ' + d.destination + ' — Pilot Knoxville #198 recommended';
   }).catch(() => {});
+
+// Load maintenance alert for home screen
+loadHomeMaintenance();
 </script>
 </body>
 </html>

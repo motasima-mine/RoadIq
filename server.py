@@ -623,6 +623,126 @@ def api_fleet():
         }
     })
 
+# ── Maintenance data (synthetic — would come from telematics in production) ───
+import random, hashlib
+
+def _maintenance_for_driver(driver_id):
+    """Generate deterministic synthetic maintenance data keyed on driver_id."""
+    h = int(hashlib.md5(str(driver_id).encode()).hexdigest(), 16)
+    def pick(seed, lo, hi):
+        return lo + (seed % (hi - lo + 1))
+
+    def_pct   = pick(h >> 0,  8, 95)
+    tire_psi  = pick(h >> 4, 88, 115)   # % of nominal; below 95 = low
+    oil_life  = pick(h >> 8, 10, 100)
+    miles_to_service = pick(h >> 12, 200, 28000)
+
+    alerts = []
+    if def_pct < 20:
+        alerts.append({"type": "DEF", "severity": "critical",
+                        "msg": f"DEF critically low — {def_pct}% remaining"})
+    elif def_pct < 40:
+        alerts.append({"type": "DEF", "severity": "warning",
+                        "msg": f"DEF low — {def_pct}% remaining, refill at next stop"})
+
+    if tire_psi < 92:
+        alerts.append({"type": "TIRES", "severity": "warning",
+                        "msg": f"Tire pressure at {tire_psi}% of nominal — inspect at next stop"})
+
+    if oil_life < 15:
+        alerts.append({"type": "OIL", "severity": "critical",
+                        "msg": f"Oil life critical — {oil_life}% remaining, service needed"})
+    elif oil_life < 30:
+        alerts.append({"type": "OIL", "severity": "warning",
+                        "msg": f"Oil life at {oil_life}% — schedule service soon"})
+
+    if miles_to_service < 1000:
+        alerts.append({"type": "SERVICE", "severity": "warning",
+                        "msg": f"Scheduled service due in {miles_to_service:,} miles"})
+
+    return {
+        "def_pct":           def_pct,
+        "tire_psi_pct":      tire_psi,
+        "oil_life_pct":      oil_life,
+        "miles_to_service":  miles_to_service,
+        "alerts":            alerts,
+        "has_critical":      any(a["severity"] == "critical" for a in alerts),
+        "has_warning":       len(alerts) > 0,
+    }
+
+@app.route("/api/maintenance")
+def api_maintenance():
+    """Return maintenance status for all fleet drivers."""
+    driver_id = request.args.get("driver_id")
+    if driver_id:
+        return jsonify(_maintenance_for_driver(int(driver_id)))
+    return jsonify({str(d["id"]): _maintenance_for_driver(d["id"]) for d in DRIVERS[:15]})
+
+
+# ── Nearby POI via Overpass (OpenStreetMap) ───────────────────────────────────
+POI_CATEGORIES = {
+    "grocery":  '["shop"~"supermarket|convenience|grocery"]',
+    "laundry":  '["shop"="laundry"]["amenity"~"laundry|launderette"]',
+    "pharmacy": '["amenity"="pharmacy"]',
+    "gym":      '["leisure"~"fitness_centre|sports_centre"]["amenity"="gym"]',
+    "library":  '["amenity"="library"]',
+    "food":     '["amenity"~"restaurant|fast_food|cafe"]',
+}
+
+_OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+
+def _overpass_poi(lat, lon, radius_m=3000):
+    """Query Overpass for POIs within radius_m metres of lat/lon."""
+    results = {}
+    for cat, filter_expr in POI_CATEGORIES.items():
+        # Separate filters — grocery/laundry/gym use different tag keys
+        if cat == "laundry":
+            query = (f"[out:json][timeout:8];"
+                     f"(node['amenity'~'laundry|launderette'](around:{radius_m},{lat},{lon});"
+                     f"node['shop'~'laundry'](around:{radius_m},{lat},{lon}););"
+                     f"out 5;")
+        elif cat == "gym":
+            query = (f"[out:json][timeout:8];"
+                     f"(node['leisure'~'fitness_centre|sports_centre'](around:{radius_m},{lat},{lon});"
+                     f"node['amenity'='gym'](around:{radius_m},{lat},{lon}););"
+                     f"out 5;")
+        else:
+            tag = filter_expr.strip('[]').replace('"', '')
+            key, _, val = tag.partition('=') if '=' in tag else (tag.partition('~')[0], '~', tag.partition('~')[2])
+            query = (f"[out:json][timeout:8];"
+                     f"node{filter_expr}(around:{radius_m},{lat},{lon});"
+                     f"out 5;")
+        try:
+            r = requests.post(_OVERPASS_URL, data=query, timeout=10, verify=False)
+            elements = r.json().get("elements", [])
+            places = []
+            for el in elements[:4]:
+                tags = el.get("tags", {})
+                name = tags.get("name", "")
+                if not name:
+                    continue
+                dist_m = round(((el["lat"]-lat)**2 + (el["lon"]-lon)**2)**0.5 * 111000)
+                places.append({"name": name, "dist_m": dist_m,
+                               "lat": el["lat"], "lon": el["lon"]})
+            if places:
+                results[cat] = sorted(places, key=lambda x: x["dist_m"])
+        except Exception as e:
+            print(f"[overpass:{cat}] {e}")
+    return results
+
+@app.route("/api/poi", methods=["POST"])
+def api_poi():
+    """Return nearby POI for a rest stop location."""
+    body   = request.json or {}
+    lat    = body.get("lat")
+    lon    = body.get("lon")
+    radius = int(body.get("radius_m", 4000))
+    if lat is None or lon is None:
+        return jsonify({"error": "lat/lon required"}), 400
+    poi = _overpass_poi(float(lat), float(lon), radius)
+    return jsonify({"lat": lat, "lon": lon, "radius_m": radius, "poi": poi})
+
+
 # ── serve SPA ─────────────────────────────────────────────────────────────────
 @app.route("/")
 def index():

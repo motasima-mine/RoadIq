@@ -63,6 +63,10 @@ roadiq/
 └── README.md              ← Setup instructions
 ```
 
+## Full Tech Stack
+
+See `TECH_STACK.md` for complete breakdown of every technology, version, and why it was chosen.
+
 ## API Endpoints
 
 | Method | Path | Returns |
