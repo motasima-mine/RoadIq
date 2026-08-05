@@ -1,0 +1,38 @@
+name: auto-docs
+description: Automatically generate and publish documentation when source files or OpenAPI specs change
+
+trigger:
+  type: file-change
+  patterns:
+    - "*.py"
+    - "data/*.json"
+    - "prompts/*.txt"
+    - "api/**/*.yaml"
+    - "api/**/*.json"
+    - "openapi*.yaml"
+    - "openapi*.json"
+
+steps:
+  - name: generate-docs
+    description: Generate plain-language documentation from changed files
+    agent: kiro
+    steeringFiles:
+      - steering/documentation.md
+    inputs:
+      changedFiles: "{{ trigger.changedFiles }}"
+    outputs:
+      docsDir: "docs/generated"
+
+  - name: publish-to-confluence
+    description: Push generated docs to Confluence Cloud
+    run: |
+      python scripts/publish_to_confluence.py \
+        --docs-dir docs/generated \
+        --parent-page-title "RoadIQ Documentation"
+    dependsOn:
+      - generate-docs
+    env:
+      CONFLUENCE_URL: "{{ env.CONFLUENCE_URL }}"
+      CONFLUENCE_EMAIL: "{{ env.CONFLUENCE_EMAIL }}"
+      CONFLUENCE_API_TOKEN: "{{ env.CONFLUENCE_API_TOKEN }}"
+      CONFLUENCE_SPACE_KEY: "{{ env.CONFLUENCE_SPACE_KEY }}"

@@ -1,0 +1,11 @@
+.env
+.git
+.gitignore
+__pycache__
+*.pyc
+.kiro/
+steering/
+scripts/
+RoadIQ_Features.html
+RoadIQ_UserJourney-screenshot.png
+*.md

@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Celonis Token Reminder",
+      "trigger": "SessionStart",
+      "description": "Reminds about Celonis token refresh if MCP calls fail",
+      "action": {
+        "type": "agent",
+        "prompt": "The Celonis MCP token expires every 15 minutes. If Celonis MCP tools fail with auth errors, remind the user to run: .\\scripts\\refresh_celonis_token.ps1"
+      }
+    }
+  ]
+}

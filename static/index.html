@@ -1,0 +1,1299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#ffffff">
+<title>Pilot Flying J – RoadIQ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%; width: 100%;
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #f2f2f7;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+/* ── App shell ── */
+#app {
+  display: flex; flex-direction: column;
+  height: 100dvh; /* dynamic viewport height — handles iOS safari bar */
+  max-width: 430px;
+  margin: 0 auto;
+  background: #f2f2f7;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Top status bar spacer (safe area) ── */
+.status-bar {
+  background: #fff;
+  height: env(safe-area-inset-top, 44px);
+  flex-shrink: 0;
+}
+
+/* ── Header ── */
+.app-header {
+  background: #fff;
+  padding: 10px 16px 10px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 0.5px solid #e5e5ea;
+  flex-shrink: 0;
+  z-index: 50;
+}
+.header-logo img { height: 28px; width: auto; }
+.header-logo-text {
+  background: #DC1730; color: #fff;
+  font-size: 1rem; font-weight: 900; font-style: italic;
+  padding: 4px 10px; border-radius: 5px;
+  letter-spacing: -0.02em;
+}
+.header-greeting { font-size: 0.7rem; color: #636366; font-weight: 600; }
+.header-icon { font-size: 1.3rem; color: #1c1c1e; background: none; border: none; cursor: pointer; }
+
+/* ── Scrollable content ── */
+.screen {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 16px 16px;
+  display: none;
+}
+.screen.active { display: block; }
+
+/* ── Bottom tab bar ── */
+.tab-bar {
+  background: rgba(249,249,249,0.94);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 0.5px solid rgba(0,0,0,0.12);
+  display: flex;
+  padding: 8px 0;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 16px));
+  flex-shrink: 0;
+  z-index: 100;
+}
+.tab-btn {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; gap: 3px;
+  background: none; border: none; cursor: pointer;
+  padding: 4px 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.tab-icon-wrap {
+  width: 46px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 15px; font-size: 1.25rem;
+  transition: background 0.15s;
+}
+.tab-btn.active .tab-icon-wrap { background: #DC1730; }
+.tab-label {
+  font-size: 0.6rem; font-weight: 600; color: #8e8e93;
+  letter-spacing: 0.01em;
+}
+.tab-btn.active .tab-label { color: #DC1730; font-weight: 700; }
+.tab-btn:not(.active) .tab-icon-wrap { opacity: 0.45; }
+
+/* ── Cards ── */
+.card {
+  background: #fff; border-radius: 14px;
+  padding: 14px 16px; margin-bottom: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.card-title {
+  font-size: 1rem; font-weight: 800; color: #1c1c1e;
+  margin-bottom: 4px; letter-spacing: -0.02em;
+}
+.eyebrow {
+  font-size: 0.6rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.1em; margin-bottom: 6px;
+}
+
+/* ── Alert banner ── */
+.alert-banner {
+  background: linear-gradient(135deg, #DC1730, #a01020);
+  border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; color: #fff;
+}
+.alert-banner .eyebrow { color: rgba(255,255,255,0.75); }
+.alert-title { font-size: 0.95rem; font-weight: 800; margin: 4px 0 6px; line-height: 1.2; }
+.alert-sub { font-size: 0.72rem; opacity: 0.85; margin-bottom: 10px; line-height: 1.4; }
+.badge-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.badge {
+  background: rgba(255,255,255,0.2); border-radius: 20px;
+  padding: 5px 11px; font-size: 0.68rem; font-weight: 700; color: #fff;
+}
+
+/* ── Fuel bar ── */
+.fuel-card { background: #fff; border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+.fuel-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.fuel-label { font-size: 0.68rem; font-weight: 700; color: #636366; text-transform: uppercase; letter-spacing: 0.06em; }
+.fuel-miles { font-size: 0.72rem; font-weight: 700; }
+.fuel-track { background: #e5e5ea; border-radius: 6px; height: 8px; overflow: hidden; }
+.fuel-fill { height: 100%; border-radius: 6px; transition: width 0.4s ease; }
+.route-line { margin-top: 7px; font-size: 0.7rem; color: #636366; }
+
+/* ── Quick links ── */
+.quick-links { background: #fff; border-radius: 14px; overflow: hidden; margin-bottom: 10px; }
+.quick-item {
+  display: flex; align-items: center; padding: 13px 16px;
+  border-bottom: 0.5px solid #e5e5ea; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.quick-item:last-child { border-bottom: none; }
+.quick-icon {
+  width: 36px; height: 36px; background: #fff0f1;
+  border-radius: 10px; display: flex; align-items: center;
+  justify-content: center; font-size: 1rem; flex-shrink: 0; margin-right: 12px;
+}
+.quick-label { font-size: 0.85rem; font-weight: 600; color: #1c1c1e; flex: 1; }
+.quick-arrow { color: #DC1730; font-size: 0.9rem; font-weight: 700; }
+
+/* ── Section title ── */
+.section-title { font-size: 1rem; font-weight: 800; color: #1c1c1e; margin: 14px 0 8px; letter-spacing: -0.02em; }
+
+/* ── Offer card ── */
+.offer-card { background: #fff; border-radius: 14px; overflow: hidden; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+.offer-img {
+  width: 100%; height: 100px;
+  background: linear-gradient(135deg, #1c1c1e, #3a3a3c);
+  display: flex; align-items: center; justify-content: center; font-size: 2.8rem;
+}
+.offer-body { padding: 12px 14px 14px; }
+.offer-title { font-size: 0.92rem; font-weight: 800; color: #1c1c1e; margin: 4px 0 3px; }
+.offer-desc { font-size: 0.72rem; color: #636366; line-height: 1.4; margin-bottom: 8px; }
+.link-btn { font-size: 0.75rem; font-weight: 700; color: #DC1730; }
+
+/* ── Map ── */
+#map { height: 260px; border-radius: 14px; overflow: hidden; margin-bottom: 10px; z-index: 1; }
+
+/* ── RoadIQ stop card ── */
+.stop-card {
+  background: #fff; border-radius: 12px;
+  border-left: 4px solid #DC1730;
+  padding: 14px 16px; margin-bottom: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.stop-name { font-size: 1rem; font-weight: 800; color: #1c1c1e; margin: 4px 0 2px; }
+.stop-city { font-size: 0.72rem; color: #636366; margin-bottom: 8px; }
+.pill-row { display: flex; flex-wrap: wrap; gap: 5px; }
+.pill {
+  background: #f2f2f7; border-radius: 20px;
+  padding: 4px 10px; font-size: 0.65rem; font-weight: 600; color: #1c1c1e;
+}
+.pill-green { background: #d1fae5; color: #065f46; }
+.pill-red { background: #fee2e2; color: #991b1b; }
+
+/* ── AI plan ── */
+.ai-card {
+  background: #fff; border-radius: 12px;
+  padding: 14px 16px; margin-bottom: 10px;
+  font-size: 0.8rem; line-height: 1.7; color: #1c1c1e;
+  white-space: pre-wrap;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.ai-label { font-size: 0.6rem; font-weight: 800; color: #DC1730; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+
+/* ── Primary button ── */
+.btn-primary {
+  display: block; width: 100%;
+  background: #DC1730; color: #fff; border: none;
+  border-radius: 24px; padding: 13px 20px;
+  font-size: 0.88rem; font-weight: 700; text-align: center;
+  cursor: pointer; margin-bottom: 10px;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+}
+.btn-primary:active { background: #b8121f; }
+.btn-secondary {
+  display: block; width: 100%;
+  background: #f2f2f7; color: #1c1c1e; border: none;
+  border-radius: 24px; padding: 13px 20px;
+  font-size: 0.88rem; font-weight: 700; text-align: center;
+  cursor: pointer; margin-bottom: 10px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Spinner ── */
+.spinner {
+  display: inline-block; width: 18px; height: 18px;
+  border: 2.5px solid rgba(220,23,48,0.25);
+  border-top-color: #DC1730;
+  border-radius: 50%; animation: spin 0.7s linear infinite;
+  vertical-align: middle; margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Chat ── */
+.chat-messages { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.msg-bubble {
+  max-width: 82%; padding: 10px 13px;
+  border-radius: 18px; font-size: 0.8rem; line-height: 1.5;
+}
+.msg-user { background: #DC1730; color: #fff; align-self: flex-end; border-bottom-right-radius: 5px; }
+.msg-ai { background: #fff; color: #1c1c1e; align-self: flex-start; border-bottom-left-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.chat-input-row { display: flex; gap: 8px; align-items: center; }
+.chat-input {
+  flex: 1; background: #fff; border: 1.5px solid #d1d1d6;
+  border-radius: 22px; padding: 10px 16px;
+  font-size: 0.85rem; font-family: inherit; color: #1c1c1e;
+  outline: none;
+}
+.chat-input:focus { border-color: #DC1730; }
+.chat-send {
+  width: 40px; height: 40px; background: #DC1730; color: #fff;
+  border: none; border-radius: 50%; font-size: 1rem;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.quick-prompts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.qp-btn {
+  background: #fff; border: 1.5px solid #e5e5ea;
+  border-radius: 20px; padding: 7px 13px;
+  font-size: 0.72rem; font-weight: 600; color: #1c1c1e;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Find screen ── */
+.filter-row { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+.filter-pill {
+  background: #1c1c1e; color: #fff; border: none;
+  border-radius: 20px; padding: 6px 14px;
+  font-size: 0.68rem; font-weight: 600; cursor: pointer;
+}
+.filter-pill-outline {
+  background: #fff; color: #1c1c1e;
+  border: 1.5px solid #d1d1d6; border-radius: 20px;
+  padding: 6px 13px; font-size: 0.68rem; font-weight: 600; cursor: pointer;
+}
+
+/* ── Trip Planner ── */
+.input-group { margin-bottom: 10px; }
+.input-label { font-size: 0.68rem; font-weight: 700; color: #636366; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 5px; }
+.route-input {
+  width: 100%; background: #fff; border: 1.5px solid #d1d1d6;
+  border-radius: 12px; padding: 11px 14px;
+  font-size: 0.88rem; font-family: inherit; color: #1c1c1e;
+  outline: none; -webkit-appearance: none;
+}
+.route-input:focus { border-color: #DC1730; box-shadow: 0 0 0 3px rgba(220,23,48,0.08); }
+.route-arrow { text-align: center; font-size: 1.2rem; color: #DC1730; margin: 4px 0; font-weight: 700; }
+.prefs-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.pref-chip {
+  background: #f2f2f7; border: 1.5px solid #e5e5ea;
+  border-radius: 20px; padding: 6px 12px;
+  font-size: 0.7rem; font-weight: 600; color: #1c1c1e;
+  cursor: pointer; -webkit-tap-highlight-color: transparent; transition: all 0.15s;
+}
+.pref-chip.selected { background: #DC1730; color: #fff; border-color: #DC1730; }
+.itinerary { display: flex; flex-direction: column; gap: 0; }
+.itin-stop { display: flex; gap: 12px; position: relative; padding-bottom: 16px; }
+.itin-stop:last-child { padding-bottom: 0; }
+.itin-timeline { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; width: 32px; }
+.itin-dot {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.9rem; flex-shrink: 0; z-index: 1;
+}
+.itin-dot-origin { background: #1c1c1e; color: #fff; }
+.itin-dot-stop { background: #DC1730; color: #fff; }
+.itin-dot-dest { background: #30d158; color: #fff; }
+.itin-line { width: 2px; flex: 1; background: #e5e5ea; margin: 3px 0; min-height: 24px; }
+.itin-content { flex: 1; padding-top: 4px; padding-bottom: 4px; }
+.itin-label { font-size: 0.62rem; font-weight: 700; color: #8e8e93; text-transform: uppercase; letter-spacing: 0.08em; }
+.itin-name { font-size: 0.9rem; font-weight: 800; color: #1c1c1e; margin: 1px 0 3px; }
+.itin-meta { font-size: 0.7rem; color: #636366; line-height: 1.4; }
+.itin-card { background: #fff; border-radius: 12px; padding: 10px 12px; margin-top: 6px; border-left: 3px solid #DC1730; }
+.itin-card-pills { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.summary-bar {
+  background: #1c1c1e; border-radius: 12px;
+  padding: 12px 14px; margin-bottom: 12px;
+  display: flex; justify-content: space-around;
+}
+.summary-stat { text-align: center; }
+.summary-val { font-size: 1.1rem; font-weight: 900; color: #fff; display: block; }
+.summary-key { font-size: 0.6rem; color: #8e8e93; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+.savings-banner {
+  background: linear-gradient(135deg, #30d158, #00994a);
+  border-radius: 12px; padding: 10px 14px; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 10px; color: #fff;
+}
+.savings-banner .val { font-size: 1.3rem; font-weight: 900; }
+.savings-banner .lbl { font-size: 0.72rem; opacity: 0.9; }
+
+/* ── Plan map ── */
+#plan-map { height: 220px; border-radius: 14px; overflow: hidden; margin-bottom: 12px; }
+
+/* ── Stop picker ── */
+.stop-picker-item {
+  background: #fff; border-radius: 12px; padding: 12px 14px;
+  margin-bottom: 8px; display: flex; align-items: center; gap: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06); cursor: pointer;
+  border: 2px solid transparent; transition: border-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.stop-picker-item:active { border-color: #DC1730; }
+.stop-picker-item.chosen { border-color: #DC1730; background: #fff5f6; }
+.sp-dot {
+  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.8rem; font-weight: 800; color: #fff;
+}
+.sp-dot.chosen { background: #DC1730; }
+.sp-dot.alt    { background: #636366; }
+.sp-info { flex: 1; min-width: 0; }
+.sp-name { font-size: 0.85rem; font-weight: 800; color: #1c1c1e; }
+.sp-meta { font-size: 0.65rem; color: #636366; margin-top: 1px; }
+.sp-pills { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; }
+.sp-ask { font-size: 0.65rem; font-weight: 700; color: #DC1730; flex-shrink: 0; }
+
+/* ── Stop advice modal ── */
+.advice-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  z-index: 500; display: flex; align-items: flex-end;
+  opacity: 0; pointer-events: none; transition: opacity 0.2s;
+}
+.advice-overlay.open { opacity: 1; pointer-events: all; }
+.advice-sheet {
+  background: #fff; border-radius: 20px 20px 0 0;
+  padding: 20px 20px calc(20px + env(safe-area-inset-bottom, 16px));
+  width: 100%; max-width: 430px; margin: 0 auto;
+  transform: translateY(100%); transition: transform 0.25s ease;
+}
+.advice-overlay.open .advice-sheet { transform: translateY(0); }
+.advice-stop-name { font-size: 1rem; font-weight: 900; color: #1c1c1e; margin: 8px 0 4px; }
+.advice-verdict {
+  border-radius: 10px; padding: 12px 14px; margin: 12px 0;
+  font-size: 0.82rem; line-height: 1.6;
+}
+.advice-verdict.good { background: #d1fae5; color: #065f46; }
+.advice-verdict.skip { background: #fee2e2; color: #991b1b; }
+.advice-verdict.loading { background: #f2f2f7; color: #636366; }
+
+/* ── Fleet Manager ── */
+.fleet-kpi-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.fleet-kpi {
+  flex: 1; background: #fff; border-radius: 12px; padding: 12px 10px;
+  text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.fleet-kpi .kpi-val { font-size: 1.5rem; font-weight: 900; color: #1c1c1e; display: block; }
+.fleet-kpi .kpi-lbl { font-size: 0.58rem; font-weight: 700; color: #8e8e93; text-transform: uppercase; letter-spacing: 0.07em; }
+.fleet-kpi.risk .kpi-val { color: #DC1730; }
+.driver-row {
+  background: #fff; border-radius: 12px; padding: 12px 14px;
+  margin-bottom: 8px; display: flex; align-items: center; gap: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.driver-avatar {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: #DC1730; color: #fff; display: flex;
+  align-items: center; justify-content: center;
+  font-size: 0.75rem; font-weight: 800; flex-shrink: 0;
+}
+.driver-avatar.ok { background: #30d158; }
+.driver-info { flex: 1; min-width: 0; }
+.driver-name { font-size: 0.85rem; font-weight: 800; color: #1c1c1e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.driver-route { font-size: 0.65rem; color: #636366; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.driver-fuel-bar { height: 4px; background: #e5e5ea; border-radius: 3px; margin-top: 5px; }
+.driver-fuel-fill { height: 100%; border-radius: 3px; }
+.driver-badge {
+  font-size: 0.6rem; font-weight: 700; padding: 3px 8px;
+  border-radius: 10px; white-space: nowrap; flex-shrink: 0;
+}
+.driver-badge.risk { background: #fee2e2; color: #DC1730; }
+.driver-badge.ok   { background: #d1fae5; color: #065f46; }
+
+/* ── HOS indicator ── */
+.hos-bar-wrap { margin: 8px 0 14px; }
+.hos-labels { display: flex; justify-content: space-between; font-size: 0.6rem; color: #8e8e93; font-weight: 600; margin-bottom: 4px; }
+.hos-track { background: #e5e5ea; border-radius: 6px; height: 10px; overflow: hidden; }
+.hos-fill { height: 100%; border-radius: 6px; transition: width 0.4s; }
+
+/* ── Savings breakdown ── */
+.savings-detail {
+  background: #fff; border-radius: 12px; padding: 12px 14px;
+  margin-bottom: 12px; font-size: 0.75rem;
+}
+.savings-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 0.5px solid #f2f2f7; color: #636366; }
+.savings-row:last-child { border-bottom: none; font-weight: 800; color: #1c1c1e; font-size: 0.82rem; }
+.savings-row .green { color: #30d158; font-weight: 800; }
+
+/* ── Loyalty badge ── */
+.loyalty-banner {
+  background: linear-gradient(135deg, #1c1c1e, #3a3a3c);
+  border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; color: #fff;
+  display: flex; align-items: center; gap: 12px;
+}
+.loyalty-icon { font-size: 2rem; }
+.loyalty-text h4 { font-size: 0.85rem; font-weight: 800; margin-bottom: 2px; }
+.loyalty-text p { font-size: 0.7rem; opacity: 0.75; }
+.loyalty-pts { margin-left: auto; text-align: right; }
+.loyalty-pts span { font-size: 1.4rem; font-weight: 900; color: #DC1730; display: block; }
+.loyalty-pts small { font-size: 0.6rem; opacity: 0.6; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- safe area top -->
+  <div class="status-bar"></div>
+
+  <!-- Header -->
+  <div class="app-header">
+    <button class="header-icon">☰</button>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+      <img src="/logo.svg" alt="Pilot Flying J" style="height:26px;width:auto">
+      <span class="header-greeting" id="header-greeting">Hey, James 👋</span>
+    </div>
+    <button class="header-icon">👤</button>
+  </div>
+
+  <!-- Home Screen -->
+  <div class="screen active" id="screen-home">
+
+    <!-- RoadIQ alert -->
+    <div class="alert-banner">
+      <div class="eyebrow">⚡ RoadIQ Alert</div>
+      <div class="alert-title">Fuel stop needed in ~95 miles</div>
+      <div class="alert-sub" id="alert-sub">Based on your route to Atlanta, GA — Pilot Knoxville #198 recommended</div>
+      <div class="badge-row">
+        <span class="badge">🅿️ 78% parking</span>
+        <span class="badge">⛽ Best price</span>
+        <span class="badge" id="loyalty-badge">🏆 Platinum</span>
+      </div>
+    </div>
+
+    <!-- Fuel bar -->
+    <div class="fuel-card">
+      <div class="fuel-row">
+        <span class="fuel-label">Fuel Level</span>
+        <span class="fuel-miles" id="fuel-miles" style="color:#DC1730">140 mi remaining</span>
+      </div>
+      <div class="fuel-track"><div class="fuel-fill" id="fuel-fill" style="width:23%;background:#DC1730"></div></div>
+      <div class="route-line">📍 Nashville, TN &nbsp;→&nbsp; 🏁 Atlanta, GA</div>
+    </div>
+
+    <!-- Quick links -->
+    <div class="quick-links">
+      <div class="quick-item" onclick="switchTab('find')">
+        <div class="quick-icon">📍</div>
+        <span class="quick-label">Find a Location</span>
+        <span class="quick-arrow">↗</span>
+      </div>
+      <div class="quick-item">
+        <div class="quick-icon">⛽</div>
+        <span class="quick-label">Apply for Fuel Savings</span>
+        <span class="quick-arrow">↗</span>
+      </div>
+      <div class="quick-item">
+        <div class="quick-icon">🍕</div>
+        <span class="quick-label">Order Now</span>
+        <span class="quick-arrow">↗</span>
+      </div>
+    </div>
+
+    <!-- Loyalty -->
+    <div class="loyalty-banner">
+      <div class="loyalty-icon">🏆</div>
+      <div class="loyalty-text">
+        <h4>Platinum Status</h4>
+        <p>2× points on every fill-up</p>
+      </div>
+      <div class="loyalty-pts">
+        <span>12,480</span>
+        <small>myRewards pts</small>
+      </div>
+    </div>
+
+    <!-- Deals -->
+    <div class="section-title">Today's Deals</div>
+
+    <div class="offer-card">
+      <div class="offer-img">🥤</div>
+      <div class="offer-body">
+        <div class="eyebrow" style="color:#DC1730">⏰ This week's BOGO</div>
+        <div class="offer-title">Hydrate With Any Flavor Gatorade</div>
+        <div class="offer-desc">Buy any Gatorade, get one free. This week only at Pilot Flying J.</div>
+        <span class="link-btn">See Offer →</span>
+      </div>
+    </div>
+
+    <div class="offer-card">
+      <div class="offer-img">🍕</div>
+      <div class="offer-body">
+        <div class="eyebrow" style="color:#636366">🍽️ Meal Deal</div>
+        <div class="offer-title">$8 Lunch &amp; Dinner Deal</div>
+        <div class="offer-desc">2 XL pizza slices + 20oz fountain drink combo.</div>
+        <span class="link-btn">Order Now →</span>
+      </div>
+    </div>
+
+    <button class="btn-primary" onclick="switchTab('roadiq')">⚡ View My RoadIQ Journey Plan</button>
+
+  </div><!-- /home -->
+
+  <!-- Find Screen -->
+  <div class="screen" id="screen-find">
+    <div class="section-title" style="margin-top:0">Find a Stop</div>
+    <div class="filter-row">
+      <button class="filter-pill">All Stops</button>
+      <button class="filter-pill-outline">⛽ Fuel Price</button>
+      <button class="filter-pill-outline">🚿 Showers</button>
+      <button class="filter-pill-outline">🅿️ Parking</button>
+    </div>
+    <div id="map"></div>
+    <div class="section-title">On Your Route</div>
+    <div class="stop-card">
+      <div class="eyebrow" style="color:#DC1730">⭐ RoadIQ Recommended</div>
+      <div class="stop-name">Pilot Knoxville #198</div>
+      <div class="stop-city">Knoxville, TN · ~95 miles ahead</div>
+      <div class="pill-row">
+        <span class="pill pill-green">🅿️ 78% parking</span>
+        <span class="pill">🚿 8 min wait</span>
+        <span class="pill">🍽️ Subway, Denny's</span>
+        <span class="pill pill-green">🤝 Fleet deal</span>
+      </div>
+    </div>
+    <button class="btn-primary" onclick="switchTab('roadiq')">⚡ Get AI Journey Plan</button>
+  </div><!-- /find -->
+
+  <!-- RoadIQ Screen -->
+  <div class="screen" id="screen-roadiq">
+    <div class="alert-banner" style="margin-bottom:10px">
+      <div class="eyebrow">⚡ RoadIQ · AI Co-Pilot</div>
+      <div class="alert-title">James Okafor · Nashville → Atlanta</div>
+      <div class="badge-row">
+        <span class="badge">🚨 Fuel Risk</span>
+        <span class="badge">🏆 Platinum</span>
+        <span class="badge">140 mi left</span>
+      </div>
+    </div>
+
+    <div class="stop-card">
+      <div class="eyebrow" style="color:#DC1730">⭐ RoadIQ Recommended Stop</div>
+      <div class="stop-name">Pilot Knoxville #198</div>
+      <div class="stop-city">Knoxville, TN</div>
+      <div class="pill-row">
+        <span class="pill pill-green">🅿️ 78%</span>
+        <span class="pill">🚿 8 min</span>
+        <span class="pill">🍽️ Subway, Denny's</span>
+        <span class="pill pill-green">🤝 Fleet deal</span>
+      </div>
+    </div>
+
+    <div id="plan-container"></div>
+
+    <button class="btn-primary" id="plan-btn" onclick="generatePlan()">✨ Generate My AI Journey Plan</button>
+    <button class="btn-secondary" onclick="switchTab('chat')">💬 Ask RoadIQ a Question</button>
+  </div><!-- /roadiq -->
+
+  <!-- Trip Planner Screen -->
+  <div class="screen" id="screen-plan">
+    <div class="section-title" style="margin-top:0">Plan My Trip</div>
+
+    <!-- Route inputs -->
+    <div class="input-group">
+      <div class="input-label">📍 From</div>
+      <input class="route-input" id="plan-from" type="text" placeholder="e.g. Nashville, TN" value="Nashville, TN">
+    </div>
+    <div class="route-arrow">↓</div>
+    <div class="input-group">
+      <div class="input-label">🏁 To</div>
+      <input class="route-input" id="plan-to" type="text" placeholder="e.g. Atlanta, GA" value="Atlanta, GA">
+    </div>
+
+    <!-- Driver prefs -->
+    <div class="input-label" style="margin-bottom:8px;margin-top:4px">I need</div>
+    <div class="prefs-row" id="prefs-row">
+      <button class="pref-chip selected" onclick="togglePref(this,'fuel')">⛽ Fuel</button>
+      <button class="pref-chip" onclick="togglePref(this,'shower')">🚿 Shower</button>
+      <button class="pref-chip" onclick="togglePref(this,'parking')">🅿️ Parking</button>
+      <button class="pref-chip" onclick="togglePref(this,'food')">🍽️ Food</button>
+      <button class="pref-chip" onclick="togglePref(this,'fleet')">🤝 Fleet Deal</button>
+    </div>
+
+    <!-- HOS (Hours of Service) -->
+    <div class="input-label" style="margin-bottom:5px;margin-top:4px">⏱️ Hours driven today (HOS)</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+      <input type="range" id="hos-slider" min="0" max="11" step="0.5" value="0"
+        style="flex:1;accent-color:#DC1730" oninput="updateHOS(this.value)">
+      <span id="hos-display" style="font-size:0.8rem;font-weight:800;color:#1c1c1e;min-width:36px">0h</span>
+    </div>
+    <div class="hos-bar-wrap">
+      <div class="hos-labels"><span>0h</span><span>8h (required rest)</span><span>11h limit</span></div>
+      <div class="hos-track">
+        <div class="hos-fill" id="hos-fill" style="width:0%;background:#30d158"></div>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="plan-go-btn" onclick="buildTrip()">🗺️ Build My Optimized Route</button>
+
+    <!-- Results -->
+    <div id="plan-results" style="display:none">
+
+      <!-- Route map -->
+      <div id="plan-map"></div>
+
+      <!-- Summary bar -->
+      <div class="summary-bar" id="plan-summary"></div>
+
+      <!-- Savings -->
+      <div class="savings-banner" id="plan-savings">
+        <div>
+          <div class="val" id="savings-val">—</div>
+          <div class="lbl">estimated savings vs. unoptimized route</div>
+        </div>
+        <div style="font-size:1.6rem;margin-left:auto">💰</div>
+      </div>
+
+      <!-- Cost savings breakdown -->
+      <div class="savings-detail" id="savings-detail" style="display:none">
+        <div class="eyebrow" style="color:#30d158;margin-bottom:8px">💰 Cost Savings Breakdown</div>
+        <div class="savings-row"><span>Retail diesel price</span><span id="sd-retail">—</span></div>
+        <div class="savings-row"><span>Pilot fleet price</span><span id="sd-fleet">—</span></div>
+        <div class="savings-row"><span>Savings per gallon</span><span class="green" id="sd-per-gal">—</span></div>
+        <div class="savings-row"><span>Estimated gallons</span><span id="sd-gallons">—</span></div>
+        <div class="savings-row"><span>Total trip savings</span><span class="green" id="sd-total">—</span></div>
+      </div>
+
+      <!-- HOS alert -->
+      <div id="hos-alert" style="display:none;background:#fff3cd;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:0.75rem;border-left:4px solid #ff9500">
+        <strong>⏱️ HOS Advisory</strong><br>
+        <span id="hos-alert-text"></span>
+      </div>
+
+      <!-- Offers -->
+      <div id="plan-offers" style="display:none;margin-bottom:12px"></div>
+
+      <!-- AI narrative -->
+      <div class="card" id="plan-ai-text" style="margin-bottom:12px;font-size:0.8rem;line-height:1.7;color:#1c1c1e;white-space:pre-wrap">
+        <div class="eyebrow" style="color:#DC1730;margin-bottom:8px">✨ RoadIQ AI · Journey Insights</div>
+        <span id="plan-ai-body"></span>
+      </div>
+
+      <!-- Itinerary timeline -->
+      <div class="section-title">Your Itinerary</div>
+      <div class="itinerary" id="plan-itinerary"></div>
+
+      <!-- All stops on route -->
+      <div class="section-title" style="margin-top:4px">All Pilot Stops on Your Route</div>
+      <div style="font-size:0.7rem;color:#636366;margin-bottom:10px">Tap any stop to ask RoadIQ if it's right for you</div>
+      <div id="all-stops-list"></div>
+
+      <button class="btn-secondary" style="margin-top:4px" onclick="switchTab('chat')">💬 Ask RoadIQ about this route</button>
+    </div>
+  </div><!-- /plan -->
+
+  <!-- Stop advice bottom sheet -->
+  <div class="advice-overlay" id="advice-overlay" onclick="closeAdvice(event)">
+    <div class="advice-sheet">
+      <div style="width:36px;height:4px;background:#d1d1d6;border-radius:2px;margin:0 auto 16px"></div>
+      <div class="eyebrow" style="color:#DC1730">⚡ RoadIQ Stop Advice</div>
+      <div class="advice-stop-name" id="advice-stop-name"></div>
+      <div class="advice-verdict loading" id="advice-verdict"><span class="spinner"></span> Asking RoadIQ…</div>
+      <div style="display:flex;gap:8px;margin-top:4px" id="advice-stop-pills"></div>
+      <button class="btn-primary" style="margin-top:16px;margin-bottom:0" onclick="closeAdvice()">Got it</button>
+    </div>
+  </div>
+
+  <!-- Fleet Manager Screen -->
+  <div class="screen" id="screen-fleet">
+    <div class="section-title" style="margin-top:0">Fleet Manager</div>
+    <div class="fleet-kpi-row" id="fleet-kpis">
+      <div class="fleet-kpi"><span class="kpi-val" id="kpi-total">—</span><span class="kpi-lbl">Drivers</span></div>
+      <div class="fleet-kpi risk"><span class="kpi-val" id="kpi-risk">—</span><span class="kpi-lbl">Fuel Risk</span></div>
+      <div class="fleet-kpi"><span class="kpi-val" id="kpi-route">—</span><span class="kpi-lbl">On Route</span></div>
+    </div>
+    <div id="fleet-list">
+      <div style="text-align:center;padding:30px;color:#8e8e93;font-size:0.8rem"><span class="spinner"></span> Loading fleet…</div>
+    </div>
+  </div><!-- /fleet -->
+
+  <!-- Chat Screen -->
+  <div class="screen" id="screen-chat">
+    <div style="margin-bottom:10px">
+      <div class="card-title">RoadIQ Assistant</div>
+      <div style="font-size:0.72rem;color:#636366;margin-top:2px">Ask anything about your route, stops, or rewards</div>
+    </div>
+    <div class="quick-prompts">
+      <button class="qp-btn" onclick="sendQuick('Best fuel price on my route?')">⛽ Best fuel price?</button>
+      <button class="qp-btn" onclick="sendQuick('Is there parking at Knoxville #198?')">🅿️ Parking available?</button>
+      <button class="qp-btn" onclick="sendQuick('How do I earn more Platinum points?')">🏆 Earn more points?</button>
+      <button class="qp-btn" onclick="sendQuick('Shower wait time at my next stop?')">🚿 Shower wait?</button>
+    </div>
+    <div class="chat-messages" id="chat-messages">
+      <div class="msg-bubble msg-ai">👋 Hey James! I'm your RoadIQ co-pilot. You have 140 miles of fuel left and Pilot Knoxville #198 is ~95 miles ahead — perfect timing. What do you need?</div>
+    </div>
+    <div class="chat-input-row">
+      <input class="chat-input" id="chat-input" type="text" placeholder="Ask RoadIQ…" onkeydown="if(event.key==='Enter')sendChat()">
+      <button class="chat-send" onclick="sendChat()">↑</button>
+    </div>
+  </div><!-- /chat -->
+
+  <!-- Tab bar -->
+  <nav class="tab-bar">
+    <button class="tab-btn active" id="tab-home" onclick="switchTab('home')">
+      <div class="tab-icon-wrap">🏠</div>
+      <span class="tab-label">Home</span>
+    </button>
+    <button class="tab-btn" id="tab-plan" onclick="switchTab('plan')">
+      <div class="tab-icon-wrap">🗺️</div>
+      <span class="tab-label">Plan Trip</span>
+    </button>
+    <button class="tab-btn" id="tab-fleet" onclick="switchTab('fleet')">
+      <div class="tab-icon-wrap">🚛</div>
+      <span class="tab-label">Fleet</span>
+    </button>
+    <button class="tab-btn" id="tab-roadiq" onclick="switchTab('roadiq')">
+      <div class="tab-icon-wrap">⚡</div>
+      <span class="tab-label">RoadIQ</span>
+    </button>
+    <button class="tab-btn" id="tab-chat" onclick="switchTab('chat')">
+      <div class="tab-icon-wrap">💬</div>
+      <span class="tab-label">Chat</span>
+    </button>
+  </nav>
+
+</div><!-- /app -->
+
+<script>
+// ── Tab navigation ────────────────────────────────────────────────────────────
+let currentTab = 'home';
+let mapInitialized = false;
+let fleetLoaded = false;
+
+function switchTab(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  currentTab = name;
+  if (name === 'find' && !mapInitialized) initMap();
+  if (name === 'fleet' && !fleetLoaded) loadFleet();
+}
+
+// ── HOS slider ────────────────────────────────────────────────────────────────
+function updateHOS(val) {
+  const h = parseFloat(val);
+  document.getElementById('hos-display').textContent = h + 'h';
+  const pct = (h / 11) * 100;
+  const fill = document.getElementById('hos-fill');
+  fill.style.width = pct + '%';
+  fill.style.background = h >= 8 ? '#DC1730' : h >= 6 ? '#ff9500' : '#30d158';
+}
+
+// ── Fleet Manager ─────────────────────────────────────────────────────────────
+function loadFleet() {
+  fleetLoaded = true;
+  fetch('/api/fleet')
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('kpi-total').textContent = data.summary.total;
+      document.getElementById('kpi-risk').textContent  = data.summary.at_risk;
+      document.getElementById('kpi-route').textContent = data.summary.on_route;
+
+      const list = document.getElementById('fleet-list');
+      list.innerHTML = data.drivers.map(d => {
+        const initials = d.name.split(' ').map(n=>n[0]).join('').slice(0,2);
+        const fuelColor = d.fuel_pct < 25 ? '#DC1730' : d.fuel_pct < 50 ? '#ff9500' : '#30d158';
+        const isRisk = d.status === 'fuel_risk';
+        return `
+          <div class="driver-row">
+            <div class="driver-avatar ${isRisk ? '' : 'ok'}">${initials}</div>
+            <div class="driver-info">
+              <div class="driver-name">${d.name}</div>
+              <div class="driver-route">${d.route}</div>
+              <div class="driver-fuel-bar">
+                <div class="driver-fuel-fill" style="width:${d.fuel_pct}%;background:${fuelColor}"></div>
+              </div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div class="driver-badge ${isRisk ? 'risk' : 'ok'}">${isRisk ? '⚠️ Fuel Risk' : '✅ On Track'}</div>
+              <div style="font-size:0.6rem;color:#8e8e93;margin-top:4px">${d.loyalty_tier || 'Standard'}</div>
+              <div style="font-size:0.6rem;color:#636366">${d.fuel_miles} mi left</div>
+            </div>
+          </div>`;
+      }).join('');
+    })
+    .catch(() => {
+      document.getElementById('fleet-list').innerHTML =
+        '<div style="text-align:center;padding:30px;color:#DC1730;font-size:0.8rem">Could not load fleet data.</div>';
+    });
+}
+
+// ── Map ───────────────────────────────────────────────────────────────────────
+let leafMap = null;
+
+function initMap() {
+  mapInitialized = true;
+  leafMap = L.map('map', { zoomControl: true, attributionControl: false }).setView([35.5, -84.5], 7);
+  // Use CartoDB dark tiles (loads faster, no CORS issues on corp proxy)
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    subdomains: 'abcd', maxZoom: 19
+  }).addTo(leafMap);
+
+  // Pilot stop marker
+  const pilotIcon = L.divIcon({
+    html: '<div style="background:#DC1730;color:#fff;font-weight:800;font-size:0.65rem;padding:4px 7px;border-radius:8px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.3)">⭐ Knoxville #198</div>',
+    className: '', iconAnchor: [60, 12]
+  });
+  L.marker([35.9606, -83.9207], { icon: pilotIcon }).addTo(leafMap)
+    .bindPopup('<b>Pilot Knoxville #198</b><br>78% parking · 8min shower<br>Subway, Denny\'s');
+
+  // Origin / destination pins
+  L.circleMarker([36.1627, -86.7816], { radius: 8, color: '#1c1c1e', fillColor: '#fff', fillOpacity: 1, weight: 2.5 })
+    .addTo(leafMap).bindPopup('📍 Nashville, TN (You)');
+  L.circleMarker([33.7490, -84.3880], { radius: 8, color: '#DC1730', fillColor: '#DC1730', fillOpacity: 0.9, weight: 2 })
+    .addTo(leafMap).bindPopup('🏁 Atlanta, GA');
+
+  // Draw route
+  fetch('/api/route')
+    .then(r => r.json())
+    .then(data => {
+      if (data.route && data.route.length) {
+        L.polyline(data.route, { color: '#DC1730', weight: 3.5, opacity: 0.85 }).addTo(leafMap);
+      }
+    }).catch(() => {
+      // fallback straight line
+      L.polyline([[36.1627,-86.7816],[35.9606,-83.9207],[33.7490,-84.3880]],
+        { color: '#DC1730', weight: 3, dashArray: '6,6' }).addTo(leafMap);
+    });
+
+  setTimeout(() => leafMap.invalidateSize(), 200);
+}
+
+// ── Journey Plan ──────────────────────────────────────────────────────────────
+function generatePlan() {
+  const btn = document.getElementById('plan-btn');
+  const container = document.getElementById('plan-container');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Generating plan…';
+  container.innerHTML = '';
+
+  fetch('/api/ai', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode: 'plan' })
+  })
+  .then(r => r.json())
+  .then(data => {
+    container.innerHTML = `
+      <div class="ai-card">
+        <div class="ai-label">✨ RoadIQ AI · ${data.source === 'bedrock' ? 'Claude 3.5 Sonnet' : 'Smart Plan'}</div>
+        ${escHtml(data.text)}
+      </div>`;
+    btn.innerHTML = '🔄 Regenerate Plan';
+    btn.disabled = false;
+  })
+  .catch(() => {
+    container.innerHTML = '<div class="ai-card"><div class="ai-label">Plan</div>Unable to load plan. Check connection.</div>';
+    btn.innerHTML = '✨ Generate My AI Journey Plan';
+    btn.disabled = false;
+  });
+}
+
+// ── Chat ──────────────────────────────────────────────────────────────────────
+function sendQuick(text) {
+  document.getElementById('chat-input').value = text;
+  sendChat();
+}
+
+function sendChat() {
+  const input = document.getElementById('chat-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+
+  appendMsg(msg, 'user');
+
+  // Typing indicator
+  const typingId = 'typing-' + Date.now();
+  const msgs = document.getElementById('chat-messages');
+  msgs.innerHTML += `<div class="msg-bubble msg-ai" id="${typingId}"><span class="spinner"></span> Thinking…</div>`;
+  msgs.scrollTop = msgs.scrollHeight;
+
+  fetch('/api/ai', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode: 'chat', message: msg })
+  })
+  .then(r => r.json())
+  .then(data => {
+    document.getElementById(typingId)?.remove();
+    appendMsg(data.text, 'ai');
+  })
+  .catch(() => {
+    document.getElementById(typingId)?.remove();
+    appendMsg("Sorry, I'm having trouble connecting right now.", 'ai');
+  });
+}
+
+function appendMsg(text, role) {
+  const msgs = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'msg-bubble msg-' + role;
+  div.textContent = text;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function escHtml(t) {
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Trip Planner ──────────────────────────────────────────────────────────────
+let planMap = null;
+let planMapInit = false;
+let lastPlanData = null;
+let lastFrom = '', lastTo = '', lastPrefs = [], lastHos = 0;
+
+function togglePref(el, key) { el.classList.toggle('selected'); }
+
+function getSelectedPrefs() {
+  return [...document.querySelectorAll('#prefs-row .pref-chip.selected')]
+    .map(el => el.textContent.trim().split(' ').slice(1).join(' ').toLowerCase());
+}
+
+function buildTrip() {
+  const from = document.getElementById('plan-from').value.trim();
+  const to   = document.getElementById('plan-to').value.trim();
+  if (!from || !to) { alert('Please enter origin and destination.'); return; }
+
+  const btn = document.getElementById('plan-go-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Optimizing route…';
+  document.getElementById('plan-results').style.display = 'none';
+
+  const prefs = getSelectedPrefs();
+
+  const hosVal = parseFloat(document.getElementById('hos-slider').value) || 0;
+  lastFrom = from; lastTo = to; lastPrefs = prefs; lastHos = hosVal;
+
+  fetch('/api/plan', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from, to, prefs, hos_hours_driven: hosVal })
+  })
+  .then(r => r.json())
+  .then(data => {
+    lastPlanData = data;
+    renderTrip(data);
+    btn.innerHTML = '🔄 Re-optimize Route';
+    btn.disabled = false;
+  })
+  .catch(() => {
+    btn.innerHTML = '🗺️ Build My Optimized Route';
+    btn.disabled = false;
+    alert('Could not build route. Check connection.');
+  });
+}
+
+function renderTrip(data) {
+  // Summary bar
+  document.getElementById('plan-summary').innerHTML = `
+    <div class="summary-stat"><span class="summary-val">${data.total_miles} mi</span><span class="summary-key">Total Distance</span></div>
+    <div class="summary-stat"><span class="summary-val">${data.drive_hours} hrs</span><span class="summary-key">Drive Time</span></div>
+    <div class="summary-stat"><span class="summary-val">${data.stops.length}</span><span class="summary-key">Pilot Stops</span></div>
+    <div class="summary-stat"><span class="summary-val">${data.total_gallons} gal</span><span class="summary-key">Est. Fuel</span></div>
+  `;
+
+  // Savings banner
+  document.getElementById('savings-val').textContent = data.savings || '$0';
+
+  // Savings detail breakdown
+  const sd = data.savings_detail;
+  if (sd && sd.fleet_price) {
+    document.getElementById('savings-detail').style.display = 'block';
+    document.getElementById('sd-retail').textContent   = `$${sd.retail_price.toFixed(3)}/gal`;
+    document.getElementById('sd-fleet').textContent    = `$${sd.fleet_price.toFixed(3)}/gal`;
+    document.getElementById('sd-per-gal').textContent  = `-$${sd.savings_per_gal.toFixed(3)}/gal`;
+    document.getElementById('sd-gallons').textContent  = `${sd.total_gallons} gal`;
+    document.getElementById('sd-total').textContent    = `$${sd.total_savings.toFixed(2)}`;
+  } else {
+    document.getElementById('savings-detail').style.display = 'none';
+  }
+
+  // HOS advisory
+  const hos = data.hos;
+  const hosAlertEl = document.getElementById('hos-alert');
+  if (hos && hos.hours_driven > 0) {
+    hosAlertEl.style.display = 'block';
+    const remaining = hos.hours_remaining.toFixed(1);
+    const milesLeft = hos.miles_remaining;
+    let hosMsg = `You've driven ${hos.hours_driven}h today. `;
+    if (hos.hours_remaining <= 2) {
+      hosMsg += `⚠️ Only ${remaining}h remaining — a mandatory rest break is required soon. Stops marked below require a break.`;
+    } else if (hos.hours_remaining <= 5) {
+      hosMsg += `${remaining}h remaining (${milesLeft} mi). Plan a rest stop before your limit.`;
+    } else {
+      hosMsg += `${remaining}h remaining (${milesLeft} mi). You're within HOS limits for this route.`;
+    }
+    document.getElementById('hos-alert-text').textContent = hosMsg;
+  } else {
+    hosAlertEl.style.display = 'none';
+  }
+
+  // Offers
+  const offersEl = document.getElementById('plan-offers');
+  if (data.offers && data.offers.length) {
+    offersEl.style.display = 'block';
+    offersEl.innerHTML = `<div class="card" style="padding:12px 14px">
+      <div class="eyebrow" style="color:#DC1730;margin-bottom:8px">🎁 Your Active Offers</div>
+      ${data.offers.map(o => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f2f2f7;font-size:0.8rem">
+        <span style="color:#1c1c1e">${o.offer_type || 'Special Offer'}</span>
+        <span style="font-weight:800;color:#30d158">$${(o.offer_value||0).toFixed(2)} off</span>
+      </div>`).join('')}
+    </div>`;
+  } else {
+    offersEl.style.display = 'none';
+  }
+
+  // AI narrative
+  document.getElementById('plan-ai-body').textContent = data.ai_plan || '';
+
+  // Itinerary timeline
+  const itin = document.getElementById('plan-itinerary');
+  itin.innerHTML = '';
+
+  // Origin
+  itin.innerHTML += itinStop('origin', '📍', data.from, '', 'Starting Point', []);
+
+  // Pilot stops
+  data.stops.forEach((stop, i) => {
+    const pills = [];
+    if (stop.visited_before) pills.push(`⭐ You've stopped here`);
+    if (stop.hos_break_required) pills.push(`⏱️ Rest break here`);
+    if (stop.diesel_price) pills.push(`⛽ $${stop.diesel_price.toFixed(3)}/gal`);
+    if (stop.parking_pct) pills.push(`🅿️ ${stop.parking_pct}% parking`);
+    if (stop.shower_wait != null) pills.push(`🚿 ${stop.shower_wait} min wait`);
+    if (stop.food) pills.push(`🍽️ ${stop.food}`);
+    if (stop.fleet_deal) pills.push(`🤝 Fleet pricing`);
+    if (stop.interstate) pills.push(`🛣️ ${stop.interstate}`);
+    if (stop.points_multiplier > 1) pills.push(`🏆 ${stop.points_multiplier}x points`);
+    const brandIcon = (stop.brand || '').includes('FLYING J') ? '🟡' : '🔴';
+    itin.innerHTML += itinStop(
+      'stop', brandIcon,
+      stop.name, stop.city + (stop.state ? `, ${stop.state}` : ''),
+      `Mile ${stop.mile_marker} · ${stop.reason}`,
+      pills, i < data.stops.length - 1
+    );
+  });
+
+  // Destination
+  itin.innerHTML += itinStop('dest', '🏁', data.to, '', 'Destination', [], false);
+
+  // Map
+  renderPlanMap(data);
+
+  // All stops picker
+  renderAllStops(data);
+
+  document.getElementById('plan-results').style.display = 'block';
+  document.getElementById('plan-results').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ── Plan map (SVG — no tiles, instant render) ─────────────────────────────────
+function renderPlanMap(data) {
+  const el = document.getElementById('plan-map');
+  el.innerHTML = '';
+
+  // Collect all points to compute bounding box
+  const pts = [];
+  (data.route_coords || []).forEach(c => pts.push(c));
+  if (data.from_coords) pts.push(data.from_coords);
+  if (data.to_coords)   pts.push(data.to_coords);
+  (data.all_stops || []).forEach(s => { if (s.lat && s.lon) pts.push([s.lat, s.lon]); });
+
+  if (!pts.length) {
+    el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#8e8e93;font-size:0.8rem">No route data</div>';
+    return;
+  }
+
+  const W = el.offsetWidth || 340, H = 220;
+  const minLat = Math.min(...pts.map(p=>p[0])) - 0.3;
+  const maxLat = Math.max(...pts.map(p=>p[0])) + 0.3;
+  const minLon = Math.min(...pts.map(p=>p[1])) - 0.3;
+  const maxLon = Math.max(...pts.map(p=>p[1])) + 0.3;
+
+  const tx = lon => ((lon - minLon) / (maxLon - minLon)) * (W - 24) + 12;
+  const ty = lat => H - (((lat - minLat) / (maxLat - minLat)) * (H - 24) + 12);
+
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"
+    style="display:block;background:#1c1c1e;border-radius:14px">
+    <defs>
+      <filter id="shadow"><feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.4"/></filter>
+    </defs>`;
+
+  // Route polyline
+  if (data.route_coords && data.route_coords.length > 1) {
+    const d = data.route_coords.map((c, i) => `${i===0?'M':'L'}${tx(c[1]).toFixed(1)},${ty(c[0]).toFixed(1)}`).join(' ');
+    svg += `<path d="${d}" fill="none" stroke="#DC1730" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>`;
+  } else if (data.from_coords && data.to_coords) {
+    // Fallback straight line
+    svg += `<line x1="${tx(data.from_coords[1]).toFixed(1)}" y1="${ty(data.from_coords[0]).toFixed(1)}"
+      x2="${tx(data.to_coords[1]).toFixed(1)}" y2="${ty(data.to_coords[0]).toFixed(1)}"
+      stroke="#DC1730" stroke-width="2.5" stroke-dasharray="6,4" opacity="0.7"/>`;
+  }
+
+  // Stop markers
+  (data.all_stops || []).forEach((s, i) => {
+    if (!s.lat || !s.lon) return;
+    const x = tx(s.lon).toFixed(1), y = ty(s.lat).toFixed(1);
+    const col = s.is_chosen ? '#DC1730' : '#48484a';
+    const r = s.is_chosen ? 8 : 6;
+    svg += `<circle cx="${x}" cy="${y}" r="${r}" fill="${col}" stroke="#fff" stroke-width="${s.is_chosen?2:1.5}" filter="url(#shadow)"/>`;
+    if (s.is_chosen) {
+      const label = s.name || '';
+      svg += `<text x="${+x+11}" y="${+y+4}" font-size="9" fill="#fff" font-family="system-ui,sans-serif" font-weight="700">${label}</text>`;
+    }
+  });
+
+  // Origin dot
+  if (data.from_coords) {
+    const x = tx(data.from_coords[1]).toFixed(1), y = ty(data.from_coords[0]).toFixed(1);
+    svg += `<circle cx="${x}" cy="${y}" r="7" fill="#fff" stroke="#1c1c1e" stroke-width="2"/>`;
+    svg += `<text x="${+x+10}" y="${+y+4}" font-size="9" fill="#ebebf5" font-family="system-ui,sans-serif">📍 ${data.from||'Origin'}</text>`;
+  }
+
+  // Destination dot
+  if (data.to_coords) {
+    const x = tx(data.to_coords[1]).toFixed(1), y = ty(data.to_coords[0]).toFixed(1);
+    svg += `<circle cx="${x}" cy="${y}" r="7" fill="#30d158" stroke="#1c1c1e" stroke-width="2"/>`;
+    svg += `<text x="${+x+10}" y="${+y+4}" font-size="9" fill="#ebebf5" font-family="system-ui,sans-serif">🏁 ${data.to||'Dest'}</text>`;
+  }
+
+  // Legend
+  svg += `<rect x="8" y="${H-26}" width="120" height="18" rx="4" fill="rgba(0,0,0,0.5)"/>`;
+  svg += `<circle cx="18" cy="${H-17}" r="4" fill="#DC1730"/>`;
+  svg += `<text x="26" y="${H-13}" font-size="8" fill="#ebebf5" font-family="system-ui,sans-serif">Recommended stop</text>`;
+
+  svg += '</svg>';
+  el.innerHTML = svg;
+}
+
+// ── All stops picker ──────────────────────────────────────────────────────────
+function renderAllStops(data) {
+  const el = document.getElementById('all-stops-list');
+  const stops = data.all_stops || [];
+  if (!stops.length) { el.innerHTML = '<div style="color:#8e8e93;font-size:0.75rem;padding:8px 0">No stops found in this corridor.</div>'; return; }
+
+  el.innerHTML = stops.map((s, i) => {
+    const isChosen = s.is_chosen;
+    const pills = [];
+    if (s.diesel_price) pills.push(`⛽ $${s.diesel_price.toFixed(3)}`);
+    if (s.parking_pct)  pills.push(`🅿️ ${s.parking_pct}%`);
+    if (s.shower_wait != null) pills.push(`🚿 ${s.shower_wait}m`);
+    if (s.fleet_deal)   pills.push(`🤝 Fleet`);
+    if (s.visited_before) pills.push(`⭐ Been here`);
+    if (s.interstate)   pills.push(`🛣️ ${s.interstate}`);
+    const pillHtml = pills.map(p => `<span class="pill" style="font-size:0.6rem">${p}</span>`).join('');
+    return `
+      <div class="stop-picker-item ${isChosen ? 'chosen' : ''}" onclick="askAboutStop(${i})">
+        <div class="sp-dot ${isChosen ? 'chosen' : 'alt'}">${isChosen ? '⭐' : (i+1)}</div>
+        <div class="sp-info">
+          <div class="sp-name">${s.name}</div>
+          <div class="sp-meta">${s.city}${s.state ? ', '+s.state : ''}${s.interstate ? ' · '+s.interstate : ''}</div>
+          <div class="sp-pills">${pillHtml}</div>
+        </div>
+        <div class="sp-ask">Ask AI →</div>
+      </div>`;
+  }).join('');
+}
+
+// ── Stop advice modal ─────────────────────────────────────────────────────────
+function askAboutStop(idx) {
+  const stop = (lastPlanData?.all_stops || [])[idx];
+  if (!stop) return;
+
+  document.getElementById('advice-stop-name').textContent = stop.name + (stop.city ? `, ${stop.city}` : '');
+  const verdict = document.getElementById('advice-verdict');
+  verdict.className = 'advice-verdict loading';
+  verdict.innerHTML = '<span class="spinner"></span> Asking RoadIQ…';
+
+  // Show stop quick stats
+  const pills = [];
+  if (stop.diesel_price) pills.push(`⛽ $${stop.diesel_price.toFixed(3)}/gal`);
+  if (stop.parking_pct)  pills.push(`🅿️ ${stop.parking_pct}% parking`);
+  if (stop.shower_wait != null) pills.push(`🚿 ${stop.shower_wait} min`);
+  if (stop.fleet_deal)   pills.push(`🤝 Fleet deal`);
+  if (stop.visited_before) pills.push(`⭐ Visited before`);
+  document.getElementById('advice-stop-pills').innerHTML =
+    pills.map(p => `<span class="pill">${p}</span>`).join('');
+
+  document.getElementById('advice-overlay').classList.add('open');
+
+  fetch('/api/stop_advice', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      stop, from: lastFrom, to: lastTo,
+      prefs: lastPrefs, hos_hours_driven: lastHos
+    })
+  })
+  .then(r => r.json())
+  .then(d => {
+    const text = d.advice || '';
+    const isGood = /GOOD STOP/i.test(text);
+    const isSkip = /WORTH SKIPPING|SKIP/i.test(text);
+    verdict.className = 'advice-verdict ' + (isGood ? 'good' : isSkip ? 'skip' : 'good');
+    verdict.innerHTML = text.replace(/GOOD STOP/gi, '<strong>✅ GOOD STOP</strong>')
+                            .replace(/WORTH SKIPPING/gi, '<strong>⚠️ WORTH SKIPPING</strong>');
+  })
+  .catch(() => {
+    verdict.className = 'advice-verdict skip';
+    verdict.textContent = 'Could not get advice right now. Check connection.';
+  });
+}
+
+function closeAdvice(e) {
+  if (!e || e.target === document.getElementById('advice-overlay')) {
+    document.getElementById('advice-overlay').classList.remove('open');
+  }
+}
+
+function itinStop(type, icon, name, city, meta, pills, showLine = true) {
+  const dotClass = type === 'origin' ? 'itin-dot-origin' : type === 'dest' ? 'itin-dot-dest' : 'itin-dot-stop';
+  const pillsHtml = pills.length ? `<div class="itin-card-pills">${pills.map(p => `<span class="pill">${p}</span>`).join('')}</div>` : '';
+  const lineHtml = showLine ? '<div class="itin-line"></div>' : '';
+  return `
+    <div class="itin-stop">
+      <div class="itin-timeline">
+        <div class="itin-dot ${dotClass}">${icon}</div>
+        ${lineHtml}
+      </div>
+      <div class="itin-content">
+        <div class="itin-label">${meta}</div>
+        <div class="itin-name">${name}</div>
+        ${city ? `<div class="itin-meta">${city}</div>` : ''}
+        ${pillsHtml ? `<div class="itin-card">${pillsHtml}</div>` : ''}
+      </div>
+    </div>`;
+}
+
+// ── Load driver data ──────────────────────────────────────────────────────────
+fetch('/api/driver')
+  .then(r => r.json())
+  .then(d => {
+    const mi = d.fuel_remaining_miles;
+    const pct = Math.min(Math.round(mi / 6), 100);
+    const color = mi < 150 ? '#DC1730' : mi < 300 ? '#ff9500' : '#30d158';
+    document.getElementById('fuel-miles').textContent = mi + ' mi remaining';
+    document.getElementById('fuel-miles').style.color = color;
+    document.getElementById('fuel-fill').style.width = pct + '%';
+    document.getElementById('fuel-fill').style.background = color;
+    document.getElementById('loyalty-badge').textContent = '🏆 ' + d.loyalty_tier;
+    document.getElementById('header-greeting').textContent = 'Hey, ' + d.name.split(' ')[0] + ' 👋';
+    document.getElementById('alert-sub').textContent =
+      'Based on your route to ' + d.destination + ' — Pilot Knoxville #198 recommended';
+  }).catch(() => {});
+</script>
+</body>
+</html>

@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RoadIQ — Driver Feature List</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f4f4f4;
+    color: #111;
+  }
+
+  header {
+    background: #fff;
+    border-bottom: 3px solid #DC1730;
+    padding: 1rem 2rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  .logo {
+    background: #DC1730;
+    color: #fff;
+    font-weight: 900;
+    font-size: 1.1rem;
+    padding: 0.22rem 0.75rem;
+    border-radius: 3px;
+    letter-spacing: -0.5px;
+    text-transform: lowercase;
+  }
+  header h1 { font-size: 1rem; font-weight: 700; }
+  header p  { font-size: 0.75rem; color: #888; }
+
+  .page { max-width: 980px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
+
+  /* ── Section headings ── */
+  .section-heading {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin-bottom: 1.2rem;
+    margin-top: 2.5rem;
+  }
+  .section-heading:first-of-type { margin-top: 0; }
+  .sh-pill {
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 0.25rem 0.9rem;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+  .sh-built    { background: #000; color: #fff; }
+  .sh-building { background: #DC1730; color: #fff; }
+  .sh-skip     { background: #e5e5e5; color: #888; }
+  .sh-line { flex: 1; height: 1px; background: #ddd; }
+
+  /* ── Grid ── */
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 0.5rem; }
+  @media(max-width: 680px) { .grid { grid-template-columns: 1fr; } }
+  @media(max-width: 900px) and (min-width: 681px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+
+  /* ── Feature card ── */
+  .card {
+    background: #fff;
+    border-radius: 8px;
+    border-top: 3px solid #DC1730;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    padding: 1.2rem 1.3rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .card.skip {
+    border-top-color: #ccc;
+    opacity: 0.6;
+  }
+
+  .card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 0.8rem;
+  }
+  .card-icon { font-size: 1.5rem; line-height: 1; }
+  .status-badge {
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.65rem;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    white-space: nowrap;
+  }
+  .badge-built    { background: #f0f9f0; color: #1a6a1a; }
+  .badge-building { background: #fff7ed; color: #b84500; }
+  .badge-skip     { background: #f5f5f5; color: #999; }
+
+  .card-title {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #111;
+    margin-bottom: 0.5rem;
+    line-height: 1.25;
+  }
+  .card-desc {
+    font-size: 0.83rem;
+    color: #555;
+    line-height: 1.55;
+    flex: 1;
+    margin-bottom: 0.75rem;
+  }
+  .card-note {
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: #DC1730;
+    font-style: italic;
+    border-top: 1px solid #f0f0f0;
+    padding-top: 0.6rem;
+    margin-top: auto;
+  }
+  .card.skip .card-note { color: #aaa; }
+
+  /* ── Summary bar ── */
+  .summary {
+    background: #000;
+    border-radius: 8px;
+    padding: 1.4rem 2rem;
+    display: flex;
+    gap: 3rem;
+    margin-top: 2.5rem;
+    flex-wrap: wrap;
+  }
+  .sum-item .num  { font-size: 2rem; font-weight: 900; color: #DC1730; line-height: 1; }
+  .sum-item .lbl  { font-size: 0.72rem; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">pilot</span>
+  <div>
+    <h1>RoadIQ — Driver Feature List</h1>
+    <p>Innovate 2026 &nbsp;·&nbsp; Driver App Scope &nbsp;·&nbsp; 48-Hour Build</p>
+  </div>
+</header>
+
+<div class="page">
+
+  <!-- ── BUILT ── -->
+  <div class="section-heading">
+    <span class="sh-pill sh-built">✅ Built</span>
+    <div class="sh-line"></div>
+  </div>
+
+  <div class="grid">
+
+    <div class="card">
+      <div class="card-top">
+        <span class="card-icon">🗺️</span>
+        <span class="status-badge badge-built">✅ Built</span>
+      </div>
+      <div class="card-title">My Trip View</div>
+      <div class="card-desc">Full trip overview on app open — fuel level, vehicle health, loyalty tier, and current route. Color-coded KPI cards signal urgency at a glance. No digging required.</div>
+      <div class="card-note">Live data · fuel %, health, loyalty tier</div>
+    </div>
+
+    <div class="card">
+      <div class="card-top">
+        <span class="card-icon">📍</span>
+        <span class="status-badge badge-built">✅ Built</span>
+      </div>
+      <div class="card-title">Stops Along Your Route</div>
+      <div class="card-desc">All Pilot stops on the driver's route displayed as cards — parking %, shower wait, food options, fleet agreement status, and diesel deals. RoadIQ Pick highlighted.</div>
+      <div class="card-note">Static location data · 4 demo stops</div>
+    </div>
+
+    <div class="card">
+      <div class="card-top">
+        <span class="card-icon">⚡</span>
+        <span class="status-badge badge-built">✅ Built</span>
+      </div>
+      <div class="card-title">Journey Optimizer</div>
+      <div class="card-desc">AI-written personalized stop plan — speaks directly to the driver by name. Covers fuel timing, parking availability, shower wait, preferred food, and loyalty perk in one go.</div>
+      <div class="card-note">Azure OpenAI GPT-4o · ~350 tokens</div>
+    </div>
+
+    <div class="card">
+      <div class="card-top">
+        <span class="card-icon">💬</span>
+        <span class="status-badge badge-built">✅ Built</span>
+      </div>
+      <div class="card-title">Ask RoadIQ Chat</div>
+      <div class="card-desc">Conversational AI co-pilot. Driver types or taps a quick prompt — "I need fuel and a shower in 2 hours" — and gets a specific Pilot stop recommendation with reasoning.</div>
+      <div class="card-note">3 quick-tap prompts + free text input</div>
+    </div>
+
+    <div class="card">
+      <div class="card-top">
+        <span class="card-icon">⚠️</span>
+        <span class="status-badge badge-built">✅ Built</span>
+      </div>
+      <div class="card-title">Proactive Push Banner</div>
+      <div class="card-desc">When the driver opens the app, RoadIQ has already analyzed their route and displays an alert before they touch anything. Fuel miles remaining, best stop name, key stats — instant.</div>
+      <div class="card-note">No button click needed — fires on load</div>
+    </div>
+
+    <div class="card">
+      <div class="card-top">
+        <span class="card-icon">🚨</span>
+        <span class="status-badge badge-built">✅ Built</span>
+      </div>
+      <div class="card-title">Vehicle Health Alert</div>
+      <div class="card-desc">If vehicle health is flagged as moderate or poor, a warning surfaces in the Journey Optimizer tab with a prompt to book an inspection at the recommended stop.</div>
+      <div class="card-note">Conditional logic on health field</div>
+    </div>
+
+  </div>
+
+  <!-- ── BUILDING ── -->
+  <div class="section-heading">
+    <span class="sh-pill sh-building">🔨 Building Next</span>
+    <div class="sh-line"></div>
+  </div>
+
+  <div class="grid">
+
+    <div class="card">
+      <div class="card-top">
+        <span class="card-icon">🗺️</span>
+        <span class="status-badge badge-building">🔨 Building</span>
+      </div>
+      <div class="card-title">Journey Planner Map</div>
+      <div class="card-desc">Driver enters From / To. Real road route renders on an interactive map. Pilot stops drop as pins along the route. RoadIQ Pick is highlighted. AI recommendation surfaces instantly on selection.</div>
+      <div class="card-note">Tech: Folium + OSRM (free, no API key)</div>
+    </div>
+
+    <div class="card">
+      <div class="card-top">
+        <span class="card-icon">⭐</span>
+        <span class="status-badge badge-building">🔨 Building</span>
+      </div>
+      <div class="card-title">Loyalty Personalization</div>
+      <div class="card-desc">Based on loyalty tier, points balance, and purchase history, a specific offer is pushed to the driver at the recommended stop. Platinum: free coffee + priority shower. Standard: points multiplier on diesel.</div>
+      <div class="card-note">Connects driver spend to loyalty revenue</div>
+    </div>
+
+    <div class="card">
+      <div class="card-top">
+        <span class="card-icon">🛤️</span>
+        <span class="status-badge badge-building">🔨 Building</span>
+      </div>
+      <div class="card-title">Multi-Stop Trip Planning</div>
+      <div class="card-desc">Driver sets their full day's run — multiple legs. RoadIQ plans fuel stops across the entire route, not just the next one. Accounts for HOS windows, fuel thresholds, and preferred stop timing.</div>
+      <div class="card-note">Chained OSRM waypoints + AI planning</div>
+    </div>
+
+    <div class="card">
+      <div class="card-top">
+        <span class="card-icon">🔔</span>
+        <span class="status-badge badge-building">🔨 Building</span>
+      </div>
+      <div class="card-title">Arrival Offer Trigger</div>
+      <div class="card-desc">When the driver approaches or checks in to a recommended stop, a personalized offer auto-generates — free item, bonus points, or priority access. Closes the loyalty loop inside the app.</div>
+      <div class="card-note">Triggered by proximity to stop coordinates</div>
+    </div>
+
+    <div class="card">
+      <div class="card-top">
+        <span class="card-icon">📊</span>
+        <span class="status-badge badge-building">🔨 Building</span>
+      </div>
+      <div class="card-title">My Points & Rewards</div>
+      <div class="card-desc">Dedicated loyalty tab showing current points balance, points earned this trip, active offers, and a progress bar to next reward tier. Makes the loyalty program visible mid-route.</div>
+      <div class="card-note">Requires loyalty data from provider</div>
+    </div>
+
+    <div class="card">
+      <div class="card-top">
+        <span class="card-icon">⛽</span>
+        <span class="status-badge badge-building">🔨 Building</span>
+      </div>
+      <div class="card-title">Mobile Fueling Alert</div>
+      <div class="card-desc">If the driver's corridor has a mobile fueling window available, RoadIQ surfaces a banner with timing, location, and estimated cost savings. No need to exit the highway.</div>
+      <div class="card-note">Connects to existing Pilot mobile fueling program</div>
+    </div>
+
+  </div>
+
+  <!-- ── OUT OF SCOPE ── -->
+  <div class="section-heading">
+    <span class="sh-pill sh-skip">Out of Scope — Pitch Narrative Only</span>
+    <div class="sh-line"></div>
+  </div>
+
+  <div class="grid">
+
+    <div class="card skip">
+      <div class="card-top">
+        <span class="card-icon">😴</span>
+        <span class="status-badge badge-skip">— Skipped</span>
+      </div>
+      <div class="card-title">Driver Wellness / HOS</div>
+      <div class="card-desc">Hours of service fatigue detection, rest window suggestions, and wellness nudges. Valuable long-term but requires ELD integration outside this build's scope.</div>
+      <div class="card-note">Future expansion — mention in pitch</div>
+    </div>
+
+    <div class="card skip">
+      <div class="card-top">
+        <span class="card-icon">🔧</span>
+        <span class="status-badge badge-skip">— Skipped</span>
+      </div>
+      <div class="card-title">Predictive Maintenance</div>
+      <div class="card-desc">Real-time fault code monitoring and predictive breakdown alerts from telematics feed. Needs live OBD/telematics integration — not available in synthetic data.</div>
+      <div class="card-note">Requires telematics API — future phase</div>
+    </div>
+
+    <div class="card skip">
+      <div class="card-top">
+        <span class="card-icon">🌦️</span>
+        <span class="status-badge badge-skip">— Skipped</span>
+      </div>
+      <div class="card-title">Weather & Road Conditions</div>
+      <div class="card-desc">Real-time weather alerts, road closure flags, and re-routing suggestions baked into the journey plan. Needs a live weather API and route deviation logic.</div>
+      <div class="card-note">Weather API + routing — future phase</div>
+    </div>
+
+  </div>
+
+  <!-- Summary bar -->
+  <div class="summary">
+    <div class="sum-item"><div class="num">6</div><div class="lbl">Features Built</div></div>
+    <div class="sum-item"><div class="num">6</div><div class="lbl">Features Building</div></div>
+    <div class="sum-item"><div class="num">3</div><div class="lbl">AI Prompts</div></div>
+    <div class="sum-item"><div class="num">0</div><div class="lbl">Paid APIs Needed</div></div>
+    <div class="sum-item"><div class="num">48h</div><div class="lbl">Build Window</div></div>
+  </div>
+
+</div>
+</body>
+</html>

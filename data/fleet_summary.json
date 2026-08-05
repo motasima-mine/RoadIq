@@ -1,0 +1,19 @@
+{
+  "total_drivers": 15,
+  "issues_flagged": 4,
+  "route_optimizations": 11,
+  "estimated_fleet_savings": 487,
+  "loyalty_interactions_today": 7,
+  "maintenance_alerts": 2,
+  "additional_diesel_capture": 900,
+  "before_roadiq": {
+    "pilot_stops": 9,
+    "competitor_stops": 6,
+    "estimated_spend": 6200
+  },
+  "after_roadiq": {
+    "pilot_stops": 13,
+    "competitor_stops": 2,
+    "estimated_spend": 7100
+  }
+}
