@@ -405,16 +405,42 @@ def api_plan():
     num_stops_needed = max(1, int(rough_miles / max(safe_range, 1)))
 
     if corridor_stops:
-        corridor_stops.sort(key=lambda s: abs(
-            s.get("lat", 0) - from_coords[0]
-        ))
-        # Prefer PFJ-operated, in-network stops; then visited-before stops
+        flat, flon = from_coords
+        tlat, tlon = to_coords
+        dx, dy = tlat - flat, tlon - flon
+        length_sq = dx*dx + dy*dy
+
+        def route_progress(stop):
+            """0.0 = at origin, 1.0 = at destination. Negative = behind origin."""
+            slat, slon = stop.get("lat", 0), stop.get("lon", 0)
+            if length_sq == 0:
+                return 0.0
+            return ((slat - flat)*dx + (slon - flon)*dy) / length_sq
+
+        def perp_distance_deg(stop):
+            """Perpendicular distance from the stop to the route line, in degrees."""
+            slat, slon = stop.get("lat", 0), stop.get("lon", 0)
+            if length_sq == 0:
+                return 0.0
+            # cross product magnitude / line length
+            return abs((slon - flon)*dx - (slat - flat)*dy) / (length_sq ** 0.5)
+
+        # Max deviation: 0.5° ≈ 35 miles either side of the straight-line corridor
+        MAX_PERP_DEG = 0.5
+
+        # Drop stops behind origin (t < 0.05) or too far off the corridor
+        corridor_stops = [
+            s for s in corridor_stops
+            if route_progress(s) >= 0.05 and perp_distance_deg(s) <= MAX_PERP_DEG
+        ]
+
+        # Sort by position along route first, then quality tier
         corridor_stops.sort(key=lambda s: (
+            route_progress(s),
             not s.get("is_pfj", False),
             not s.get("in_network", False),
             not s.get("visited_before", False),
         ))
-        # Hazmat: note restriction in AI prompt (can't filter Databricks sandbox data)
         chosen = corridor_stops[:num_stops_needed]
     else:
         chosen = []
@@ -1347,13 +1373,23 @@ def api_return_loads():
 def serve_image(filename):
     return send_from_directory(_base, filename)
 
-@app.route("/api/_git_snapshot", methods=["POST"])
-def _git_snapshot():
-    import subprocess
-    msg = (request.json or {}).get("msg", "snapshot")
-    subprocess.run(["git", "add", "-A"], cwd=_base, capture_output=True)
-    r = subprocess.run(["git", "commit", "-m", msg], cwd=_base, capture_output=True, text=True)
-    return jsonify({"result": r.stdout + r.stderr})
+@app.route("/tiles/<int:z>/<int:x>/<int:y>.png")
+def proxy_tile(z, x, y):
+    """Proxy OSM tiles through Flask so corporate network / SSL issues don't block the browser."""
+    import urllib.request, ssl
+    ctx = ssl._create_unverified_context()
+    url = f"https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "RoadIQ/1.0"})
+        with urllib.request.urlopen(req, context=ctx, timeout=8) as resp:
+            data = resp.read()
+        return app.response_class(data, status=200, mimetype="image/png",
+                                  headers={"Cache-Control": "public,max-age=86400"})
+    except Exception:
+        # Return a 1x1 transparent PNG so the map doesn't hang on missing tiles
+        import base64
+        empty = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
+        return app.response_class(empty, status=200, mimetype="image/png")
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5002))

@@ -345,7 +345,10 @@ html, body {
 .savings-banner .lbl { font-size: 0.72rem; opacity: 0.9; }
 
 /* ── Plan map ── */
-#plan-map { height: 220px; border-radius: 14px; overflow: hidden; margin-bottom: 12px; }
+#plan-map { height: 280px; border-radius: 14px; overflow: hidden; margin-bottom: 12px; z-index: 0; }
+.leaflet-container { border-radius: 14px; }
+.pilot-pin { background:#DC1730; border:2px solid #fff; border-radius:50%; width:14px; height:14px; box-shadow:0 2px 6px rgba(0,0,0,0.4); }
+.pilot-pin-chosen { background:#DC1730; border:3px solid #fff; border-radius:50%; width:18px; height:18px; box-shadow:0 2px 8px rgba(220,23,48,0.6); }
 
 /* ── Stop picker ── */
 .stop-picker-item {
@@ -744,12 +747,12 @@ html, body {
         <span class="quick-label">Find a Location</span>
         <span class="quick-arrow">↗</span>
       </div>
-      <div class="quick-item">
+      <div class="quick-item" onclick="switchTab('plan')">
         <div class="quick-icon">⛽</div>
         <span class="quick-label">Apply for Fuel Savings</span>
         <span class="quick-arrow">↗</span>
       </div>
-      <div class="quick-item">
+      <div class="quick-item" onclick="switchTab('chat')">
         <div class="quick-icon">🍕</div>
         <span class="quick-label">Order Now</span>
         <span class="quick-arrow">↗</span>
@@ -1856,12 +1859,12 @@ function renderTrip(data) {
   loadReturnOpps();
 }
 
-// ── Plan map (SVG — no tiles, instant render) ─────────────────────────────────
+// ── Plan map (Leaflet real tiles) ─────────────────────────────────────────────
+let _planMap = null;
+
 function renderPlanMap(data) {
   const el = document.getElementById('plan-map');
-  el.innerHTML = '';
 
-  // Collect all points to compute bounding box
   const pts = [];
   (data.route_coords || []).forEach(c => pts.push(c));
   if (data.from_coords) pts.push(data.from_coords);
@@ -1869,70 +1872,59 @@ function renderPlanMap(data) {
   (data.all_stops || []).forEach(s => { if (s.lat && s.lon) pts.push([s.lat, s.lon]); });
 
   if (!pts.length) {
-    el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#8e8e93;font-size:0.8rem">No route data</div>';
+    el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#8e8e93;font-size:0.8rem;background:#f2f2f7;border-radius:14px">No route data</div>';
     return;
   }
 
-  const W = el.offsetWidth || 340, H = 220;
-  const minLat = Math.min(...pts.map(p=>p[0])) - 0.3;
-  const maxLat = Math.max(...pts.map(p=>p[0])) + 0.3;
-  const minLon = Math.min(...pts.map(p=>p[1])) - 0.3;
-  const maxLon = Math.max(...pts.map(p=>p[1])) + 0.3;
+  // Destroy previous map instance so Leaflet can reinitialise the container
+  if (_planMap) { _planMap.remove(); _planMap = null; }
+  el.innerHTML = '';
 
-  const tx = lon => ((lon - minLon) / (maxLon - minLon)) * (W - 24) + 12;
-  const ty = lat => H - (((lat - minLat) / (maxLat - minLat)) * (H - 24) + 12);
+  const map = L.map(el, { zoomControl: true, attributionControl: false, scrollWheelZoom: false });
+  _planMap = map;
 
-  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"
-    style="display:block;background:#1c1c1e;border-radius:14px">
-    <defs>
-      <filter id="shadow"><feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.4"/></filter>
-    </defs>`;
+  // Tiles proxied through Flask — avoids corporate SSL/network blocks
+  L.tileLayer('/tiles/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
 
   // Route polyline
   if (data.route_coords && data.route_coords.length > 1) {
-    const d = data.route_coords.map((c, i) => `${i===0?'M':'L'}${tx(c[1]).toFixed(1)},${ty(c[0]).toFixed(1)}`).join(' ');
-    svg += `<path d="${d}" fill="none" stroke="#DC1730" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>`;
+    L.polyline(data.route_coords, { color: '#DC1730', weight: 4, opacity: 0.85 }).addTo(map);
   } else if (data.from_coords && data.to_coords) {
-    // Fallback straight line
-    svg += `<line x1="${tx(data.from_coords[1]).toFixed(1)}" y1="${ty(data.from_coords[0]).toFixed(1)}"
-      x2="${tx(data.to_coords[1]).toFixed(1)}" y2="${ty(data.to_coords[0]).toFixed(1)}"
-      stroke="#DC1730" stroke-width="2.5" stroke-dasharray="6,4" opacity="0.7"/>`;
+    L.polyline([data.from_coords, data.to_coords], { color: '#DC1730', weight: 4, opacity: 0.7, dashArray: '8 6' }).addTo(map);
   }
 
   // Stop markers
-  (data.all_stops || []).forEach((s, i) => {
+  (data.all_stops || []).forEach(s => {
     if (!s.lat || !s.lon) return;
-    const x = tx(s.lon).toFixed(1), y = ty(s.lat).toFixed(1);
-    const col = s.is_chosen ? '#DC1730' : '#48484a';
-    const r = s.is_chosen ? 8 : 6;
-    svg += `<circle cx="${x}" cy="${y}" r="${r}" fill="${col}" stroke="#fff" stroke-width="${s.is_chosen?2:1.5}" filter="url(#shadow)"/>`;
-    if (s.is_chosen) {
-      const label = s.name || '';
-      svg += `<text x="${+x+11}" y="${+y+4}" font-size="9" fill="#fff" font-family="system-ui,sans-serif" font-weight="700">${label}</text>`;
-    }
+    const cls = s.is_chosen ? 'pilot-pin-chosen' : 'pilot-pin';
+    const icon = L.divIcon({ className: '', html: `<div class="${cls}"></div>`, iconSize: s.is_chosen ? [18,18] : [14,14], iconAnchor: s.is_chosen ? [9,9] : [7,7] });
+    const marker = L.marker([s.lat, s.lon], { icon }).addTo(map);
+    const label = s.is_chosen
+      ? `<b>${s.name}</b><br>${s.city}<br>⛽ $${s.diesel_price?.toFixed(3)||'—'} · 🅿️ ${s.parking_pct||'—'}% · 🚿 ${s.shower_wait||'—'} min`
+      : `${s.name}<br>${s.city}`;
+    marker.bindPopup(label);
   });
 
-  // Origin dot
+  // Origin marker
   if (data.from_coords) {
-    const x = tx(data.from_coords[1]).toFixed(1), y = ty(data.from_coords[0]).toFixed(1);
-    svg += `<circle cx="${x}" cy="${y}" r="7" fill="#fff" stroke="#1c1c1e" stroke-width="2"/>`;
-    svg += `<text x="${+x+10}" y="${+y+4}" font-size="9" fill="#ebebf5" font-family="system-ui,sans-serif">📍 ${data.from||'Origin'}</text>`;
+    const icon = L.divIcon({ className:'', html:'<div style="background:#fff;border:3px solid #1c1c1e;border-radius:50%;width:14px;height:14px;box-shadow:0 2px 4px rgba(0,0,0,0.3)"></div>', iconSize:[14,14], iconAnchor:[7,7] });
+    L.marker(data.from_coords, { icon }).addTo(map).bindPopup(`📍 ${data.from || 'Origin'}`);
   }
 
-  // Destination dot
+  // Destination marker
   if (data.to_coords) {
-    const x = tx(data.to_coords[1]).toFixed(1), y = ty(data.to_coords[0]).toFixed(1);
-    svg += `<circle cx="${x}" cy="${y}" r="7" fill="#ffffff" stroke="#1c1c1e" stroke-width="2"/>`;
-    svg += `<text x="${+x+10}" y="${+y+4}" font-size="9" fill="#ebebf5" font-family="system-ui,sans-serif">🏁 ${data.to||'Dest'}</text>`;
+    const icon = L.divIcon({ className:'', html:'<div style="background:#1c1c1e;border:3px solid #fff;border-radius:50%;width:14px;height:14px;box-shadow:0 2px 4px rgba(0,0,0,0.3)"></div>', iconSize:[14,14], iconAnchor:[7,7] });
+    L.marker(data.to_coords, { icon }).addTo(map).bindPopup(`🏁 ${data.to || 'Destination'}`);
   }
 
-  // Legend
-  svg += `<rect x="8" y="${H-26}" width="120" height="18" rx="4" fill="rgba(0,0,0,0.5)"/>`;
-  svg += `<circle cx="18" cy="${H-17}" r="4" fill="#DC1730"/>`;
-  svg += `<text x="26" y="${H-13}" font-size="8" fill="#ebebf5" font-family="system-ui,sans-serif">Recommended stop</text>`;
-
-  svg += '</svg>';
-  el.innerHTML = svg;
+  // Fit map to all points — invalidate size first so Leaflet knows the container dimensions
+  setTimeout(() => {
+    map.invalidateSize();
+    map.fitBounds(L.latLngBounds(pts), { padding: [32, 32] });
+  }, 120);
 }
 
 // ── Stop filter toggle ────────────────────────────────────────────────────────
@@ -2054,17 +2046,28 @@ function renderAllStops(data, mode) {
 // ── Navigation helper ─────────────────────────────────────────────────────────
 let _navStop = null;
 function navigateToStop(lat, lon, name) {
-  // Use passed coords, or fall back to current advice stop
   const navLat = lat ?? _navStop?.lat;
   const navLon = lon ?? _navStop?.lon;
   const navName = name ?? (_navStop ? _navStop.name + (_navStop.city ? ', ' + _navStop.city : '') : 'Destination');
-  if (navLat && navLon) {
-    // Opens Google Maps directions in browser / maps app on mobile
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${navLat},${navLon}&travelmode=driving`, '_blank');
-  } else {
-    // Fallback: search by name
-    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(navName)}`, '_blank');
-  }
+  const url = (navLat && navLon)
+    ? `https://www.google.com/maps/dir/?api=1&destination=${navLat},${navLon}&travelmode=driving`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(navName)}`;
+
+  // Show a tap-to-open banner rather than window.open (blocked in webviews/preview)
+  const existing = document.getElementById('nav-link-toast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.id = 'nav-link-toast';
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1c1c1e;color:#fff;border-radius:14px;padding:14px 20px;z-index:9999;display:flex;align-items:center;gap:12px;box-shadow:0 4px 20px rgba(0,0,0,0.4);max-width:320px;width:90%';
+  toast.innerHTML = `
+    <span style="font-size:1.4rem">🧭</span>
+    <div style="flex:1">
+      <div style="font-size:0.75rem;font-weight:700;margin-bottom:2px">${navName}</div>
+      <a href="${url}" target="_blank" style="color:#DC1730;font-size:0.72rem;font-weight:600;text-decoration:none">Open in Google Maps →</a>
+    </div>
+    <span onclick="this.parentElement.remove()" style="cursor:pointer;color:#636366;font-size:1.1rem">✕</span>`;
+  document.body.appendChild(toast);
+  setTimeout(() => { if (toast.parentElement) toast.remove(); }, 8000);
 }
 
 // ── Stop advice modal ─────────────────────────────────────────────────────────
