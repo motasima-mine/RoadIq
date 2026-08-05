@@ -1348,18 +1348,12 @@ def serve_image(filename):
     return send_from_directory(_base, filename)
 
 @app.route("/api/_git_snapshot", methods=["POST"])
-def git_snapshot():
+def _git_snapshot():
     import subprocess
-    msg = request.json.get("msg", "snapshot") if request.json else "snapshot"
-    r = subprocess.run(
-        ["git", "add", "-A"],
-        cwd=_base, capture_output=True, text=True
-    )
-    r2 = subprocess.run(
-        ["git", "commit", "-m", msg],
-        cwd=_base, capture_output=True, text=True
-    )
-    return jsonify({"add": r.stderr, "commit": r2.stdout + r2.stderr})
+    msg = (request.json or {}).get("msg", "snapshot")
+    subprocess.run(["git", "add", "-A"], cwd=_base, capture_output=True)
+    r = subprocess.run(["git", "commit", "-m", msg], cwd=_base, capture_output=True, text=True)
+    return jsonify({"result": r.stdout + r.stderr})
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5002))
