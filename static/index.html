@@ -160,19 +160,34 @@ html, body {
 .section-title { font-size: 1rem; font-weight: 800; color: #1c1c1e; margin: 14px 0 8px; letter-spacing: -0.02em; }
 
 /* ── Offer card ── */
-.offer-card { background: #fff; border-radius: 14px; overflow: hidden; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
-.offer-img {
-  width: 100%; height: 100px;
-  background: linear-gradient(135deg, #1c1c1e, #3a3a3c);
-  display: flex; align-items: center; justify-content: center; font-size: 2.8rem;
+.offer-card {
+  position: relative; border-radius: 14px; overflow: hidden; margin-bottom: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12); height: 180px; cursor: pointer;
 }
-.offer-body { padding: 12px 14px 14px; }
-.offer-title { font-size: 0.92rem; font-weight: 800; color: #1c1c1e; margin: 4px 0 3px; }
-.offer-desc { font-size: 0.72rem; color: #636366; line-height: 1.4; margin-bottom: 8px; }
+.offer-card img.offer-bg {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+}
+.offer-photo {
+  position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden;
+}
+.offer-card .offer-overlay {
+  position: absolute; bottom: 12px; left: 12px;
+  background: #fff; border-radius: 10px; padding: 10px 14px 10px 12px;
+  max-width: 55%; box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+}
+.offer-card.badge-top-right .offer-badge {
+  position: absolute; top: 10px; right: 10px;
+  background: #DC1730; color: #fff; font-size: 0.6rem; font-weight: 800;
+  padding: 3px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.offer-overlay .offer-eyebrow { font-size: 0.58rem; font-weight: 700; color: #636366; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px; }
+.offer-overlay .offer-title { font-size: 0.9rem; font-weight: 900; color: #1c1c1e; line-height: 1.2; margin-bottom: 3px; }
+.offer-overlay .offer-desc { font-size: 0.68rem; color: #636366; line-height: 1.3; margin-bottom: 6px; }
+.offer-overlay .offer-arrow { color: #DC1730; font-size: 1.1rem; font-weight: 900; line-height: 1; }
 .link-btn { font-size: 0.75rem; font-weight: 700; color: #DC1730; }
 
 /* ── Map ── */
-#map { height: 260px; border-radius: 14px; overflow: hidden; margin-bottom: 10px; z-index: 1; }
+#map { height: 260px; border-radius: 14px; overflow: hidden; margin-bottom: 10px; z-index: 1; display: flex; align-items: center; justify-content: center; background: #1c1c1e; }
 
 /* ── RoadIQ stop card ── */
 .stop-card {
@@ -188,7 +203,7 @@ html, body {
   background: #f2f2f7; border-radius: 20px;
   padding: 4px 10px; font-size: 0.65rem; font-weight: 600; color: #1c1c1e;
 }
-.pill-green { background: #d1fae5; color: #065f46; }
+.pill-green { background: #fee2e2; color: #DC1730; }
 .pill-red { background: #fee2e2; color: #991b1b; }
 
 /* ── AI plan ── */
@@ -305,7 +320,7 @@ html, body {
 }
 .itin-dot-origin { background: #1c1c1e; color: #fff; }
 .itin-dot-stop { background: #DC1730; color: #fff; }
-.itin-dot-dest { background: #30d158; color: #fff; }
+.itin-dot-dest { background: #1c1c1e; color: #fff; }
 .itin-line { width: 2px; flex: 1; background: #e5e5ea; margin: 3px 0; min-height: 24px; }
 .itin-content { flex: 1; padding-top: 4px; padding-bottom: 4px; }
 .itin-label { font-size: 0.62rem; font-weight: 700; color: #8e8e93; text-transform: uppercase; letter-spacing: 0.08em; }
@@ -322,7 +337,7 @@ html, body {
 .summary-val { font-size: 1.1rem; font-weight: 900; color: #fff; display: block; }
 .summary-key { font-size: 0.6rem; color: #8e8e93; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
 .savings-banner {
-  background: linear-gradient(135deg, #30d158, #00994a);
+  background: #1c1c1e;
   border-radius: 12px; padding: 10px 14px; margin-bottom: 12px;
   display: flex; align-items: center; gap: 10px; color: #fff;
 }
@@ -374,9 +389,80 @@ html, body {
   border-radius: 10px; padding: 12px 14px; margin: 12px 0;
   font-size: 0.82rem; line-height: 1.6;
 }
-.advice-verdict.good { background: #d1fae5; color: #065f46; }
+.advice-verdict.good { background: #fff0f0; color: #DC1730; }
 .advice-verdict.skip { background: #fee2e2; color: #991b1b; }
 .advice-verdict.loading { background: #f2f2f7; color: #636366; }
+
+/* ── Proactive re-route alert ── */
+.reroute-banner {
+  display: none; position: relative;
+  background: #1c1c1e; border-radius: 14px; padding: 12px 14px;
+  margin-bottom: 12px; color: #fff;
+}
+.reroute-banner.visible { display: block; }
+.reroute-banner .rb-eyebrow { font-size: 0.6rem; font-weight: 800; color: #DC1730; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+.reroute-banner .rb-title { font-size: 0.88rem; font-weight: 800; line-height: 1.3; margin-bottom: 6px; }
+.reroute-banner .rb-body { font-size: 0.72rem; color: #aeaeb2; margin-bottom: 10px; line-height: 1.4; }
+.reroute-banner .rb-actions { display: flex; gap: 8px; }
+.reroute-banner .rb-btn-alt { flex: 1; background: #DC1730; color: #fff; border: none; border-radius: 20px; padding: 8px 12px; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
+.reroute-banner .rb-btn-keep { flex: 1; background: rgba(255,255,255,0.12); color: #fff; border: none; border-radius: 20px; padding: 8px 12px; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
+.reroute-pulse { display: inline-block; width: 8px; height: 8px; background: #DC1730; border-radius: 50%; margin-right: 6px; animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.5; transform:scale(1.4); } }
+
+/* ── Reservation sheet ── */
+.reserve-sheet { margin-top: 12px; border-top: 1px solid #f2f2f7; padding-top: 12px; }
+.reserve-btns { display: flex; flex-direction: column; gap: 8px; }
+.reserve-btn {
+  display: flex; align-items: center; gap: 10px;
+  background: #f2f2f7; border: none; border-radius: 12px; padding: 12px 14px;
+  cursor: pointer; width: 100%; text-align: left;
+}
+.reserve-btn .rb-icon { font-size: 1.4rem; }
+.reserve-btn .rb-text { flex: 1; }
+.reserve-btn .rb-label { font-size: 0.82rem; font-weight: 800; color: #1c1c1e; }
+.reserve-btn .rb-sub { font-size: 0.68rem; color: #636366; margin-top: 1px; }
+.reserve-btn .rb-cta { font-size: 0.68rem; font-weight: 700; color: #DC1730; }
+.reserve-confirm {
+  background: #1c1c1e; border-radius: 12px; padding: 12px 14px; margin-top: 8px; color: #fff; display: none;
+}
+.reserve-confirm.show { display: flex; align-items: center; gap: 10px; }
+.reserve-confirm .rc-icon { font-size: 1.6rem; margin-bottom: 6px; }
+.reserve-confirm .rc-title { font-size: 0.9rem; font-weight: 900; margin-bottom: 4px; }
+.reserve-confirm .rc-sub { font-size: 0.72rem; color: #aeaeb2; }
+.reserve-confirm .rc-code { font-size: 1rem; font-weight: 900; color: #DC1730; margin-top: 8px; letter-spacing: 0.08em; }
+
+/* ── Return load opportunities ── */
+.load-opps-section { margin-top: 16px; }
+.load-opps-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.load-opps-title { font-size: 0.72rem; font-weight: 800; color: #636366; text-transform: uppercase; letter-spacing: .06em; }
+.opp-cost-chip { background: #fff0f0; border-radius: 20px; padding: 4px 10px; font-size: 0.68rem; font-weight: 700; color: #DC1730; }
+.load-opp-card { background: #fff; border-radius: 14px; padding: 14px; margin-bottom: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); border-left: 3px solid #e5e5ea; cursor: pointer; transition: border-color .15s; }
+.load-opp-card.best { border-left-color: #DC1730; }
+.load-opp-card:active { opacity: 0.85; }
+.load-opp-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 6px; }
+.load-opp-route { font-size: 0.82rem; font-weight: 800; color: #1c1c1e; }
+.load-opp-net { text-align: right; }
+.load-opp-net-val { font-size: 1rem; font-weight: 900; color: #DC1730; }
+.load-opp-net-label { font-size: 0.62rem; color: #636366; margin-top: 1px; }
+.load-opp-meta { display: flex; gap: 6px; flex-wrap: wrap; }
+.load-opp-pill { font-size: 0.68rem; background: #f2f2f7; border-radius: 20px; padding: 3px 8px; color: #636366; font-weight: 600; }
+.load-opp-pill.urgent { background: #fff0f0; color: #DC1730; }
+.load-opp-claim { width: 100%; margin-top: 10px; background: #DC1730; color: #fff; border: none; border-radius: 20px; padding: 9px; font-size: 0.78rem; font-weight: 800; cursor: pointer; }
+.load-claimed-confirm { background: #1c1c1e; color: #fff; border-radius: 12px; padding: 12px 14px; margin-top: 8px; display: none; }
+.load-claimed-confirm.show { display: flex; align-items: center; gap: 10px; }
+
+/* ── Route memory banner ── */
+.route-memory-banner {
+  display: none; background: #fff; border-radius: 14px; padding: 12px 14px;
+  margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  border-left: 4px solid #DC1730;
+}
+.route-memory-banner.visible { display: flex; align-items: center; gap: 10px; }
+.rmb-icon { font-size: 1.6rem; flex-shrink: 0; }
+.rmb-body { flex: 1; }
+.rmb-title { font-size: 0.8rem; font-weight: 800; color: #1c1c1e; margin-bottom: 2px; }
+.rmb-sub { font-size: 0.68rem; color: #636366; }
+.rmb-btn { background: #DC1730; color: #fff; border: none; border-radius: 20px; padding: 7px 14px; font-size: 0.72rem; font-weight: 700; cursor: pointer; flex-shrink: 0; }
 
 /* ── Fleet Manager ── */
 .fleet-kpi-row { display: flex; gap: 8px; margin-bottom: 12px; }
@@ -398,7 +484,7 @@ html, body {
   align-items: center; justify-content: center;
   font-size: 0.75rem; font-weight: 800; flex-shrink: 0;
 }
-.driver-avatar.ok { background: #30d158; }
+.driver-avatar.ok { background: #1c1c1e; }
 .driver-info { flex: 1; min-width: 0; }
 .driver-name { font-size: 0.85rem; font-weight: 800; color: #1c1c1e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .driver-route { font-size: 0.65rem; color: #636366; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -409,7 +495,7 @@ html, body {
   border-radius: 10px; white-space: nowrap; flex-shrink: 0;
 }
 .driver-badge.risk { background: #fee2e2; color: #DC1730; }
-.driver-badge.ok   { background: #d1fae5; color: #065f46; }
+.driver-badge.ok   { background: #f0f0f0; color: #1c1c1e; }
 
 /* ── HOS indicator ── */
 .hos-bar-wrap { margin: 8px 0 14px; }
@@ -424,7 +510,7 @@ html, body {
 }
 .savings-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 0.5px solid #f2f2f7; color: #636366; }
 .savings-row:last-child { border-bottom: none; font-weight: 800; color: #1c1c1e; font-size: 0.82rem; }
-.savings-row .green { color: #30d158; font-weight: 800; }
+.savings-row .green { color: #DC1730; font-weight: 800; }
 
 /* ── Maintenance alerts ── */
 .maint-badge {
@@ -433,7 +519,7 @@ html, body {
 }
 .maint-critical { background: #fee2e2; color: #DC1730; }
 .maint-warning  { background: #fff3cd; color: #92400e; }
-.maint-ok       { background: #d1fae5; color: #065f46; }
+.maint-ok       { background: #f0f0f0; color: #1c1c1e; }
 .maint-bar-row  { display: flex; gap: 6px; margin-top: 5px; flex-wrap: wrap; }
 .maint-alert-banner {
   background: #fff3cd; border-left: 4px solid #ff9500;
@@ -443,6 +529,118 @@ html, body {
 .maint-alert-banner.critical {
   background: #fee2e2; border-left-color: #DC1730; color: #991b1b;
 }
+
+/* ── Stop filter bar ── */
+.stop-filter-bar {
+  display: flex; gap: 6px; margin-bottom: 12px; margin-top: 8px;
+}
+.sfb-btn {
+  flex: 1; padding: 8px 4px; border-radius: 20px; border: 1.5px solid #e5e5ea;
+  background: #fff; font-size: 0.68rem; font-weight: 700; color: #636366;
+  cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.sfb-btn.active {
+  background: #DC1730; color: #fff; border-color: #DC1730;
+}
+.sfb-btn:not(.active):active { background: #f2f2f7; }
+
+/* ── Compare Stop cards ── */
+.competitor-card {
+  background: #fff; border-radius: 14px; padding: 14px 16px; margin-bottom: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07); border-left: 4px solid #DC1730;
+}
+.comp-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+.comp-brand { font-size: 0.65rem; font-weight: 800; color: #DC1730; letter-spacing: 0.05em; text-transform: uppercase; }
+.comp-name { font-size: 0.85rem; font-weight: 700; color: #1c1c1e; margin-bottom: 2px; }
+.comp-meta { font-size: 0.7rem; color: #636366; }
+.comp-price { font-size: 1.1rem; font-weight: 900; color: #DC1730; text-align: right; }
+.comp-price small { display: block; font-size: 0.6rem; font-weight: 500; color: #8e8e93; }
+.comp-missing { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
+.comp-missing-tag {
+  font-size: 0.6rem; background: #fee2e2; color: #DC1730;
+  padding: 2px 7px; border-radius: 8px; font-weight: 600;
+}
+.pilot-win-card {
+  background: #1c1c1e;
+  border-radius: 10px; padding: 10px 12px; margin-top: 8px;
+}
+.pilot-win-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.pilot-win-title { font-size: 0.72rem; font-weight: 800; color: #fff; }
+.pilot-win-dist { font-size: 0.62rem; color: #aeaeb2; }
+.pilot-win-price { font-size: 0.95rem; font-weight: 900; color: #fff; }
+.pilot-win-perks { list-style: none; padding: 0; margin: 0; }
+.pilot-win-perks li { font-size: 0.68rem; color: #e5e5ea; padding: 2px 0; }
+.pilot-win-perks li::before { content: "✓ "; color: #DC1730; font-weight: 900; }
+.comp-summary-banner {
+  background: #1c1c1e;
+  border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; color: #fff;
+  display: flex; align-items: center; gap: 12px;
+}
+.comp-summary-val { font-size: 1.4rem; font-weight: 900; color: #DC1730; }
+.comp-summary-label { font-size: 0.7rem; opacity: 0.8; margin-top: 1px; }
+.nav-btn {
+  display: flex; align-items: center; gap: 5px; margin-top: 10px;
+  background: #DC1730; color: #fff; border: none; border-radius: 20px;
+  padding: 7px 14px; font-size: 0.72rem; font-weight: 700; cursor: pointer; width: 100%;
+  justify-content: center; letter-spacing: 0.02em;
+}
+.nav-btn:active { opacity: 0.85; }
+
+/* ── Weather ribbon ── */
+.weather-ribbon { display:flex; gap:6px; overflow-x:auto; padding-bottom:4px; margin-bottom:12px; scrollbar-width:none; }
+.weather-ribbon::-webkit-scrollbar { display:none; }
+.wx-chip {
+  flex-shrink:0; background:#fff; border-radius:10px; padding:8px 10px;
+  text-align:center; min-width:68px; box-shadow:0 1px 3px rgba(0,0,0,0.07);
+  border-top:3px solid #1c1c1e;
+}
+.wx-chip.caution { border-top-color:#ff9500; }
+.wx-chip.severe  { border-top-color:#DC1730; }
+.wx-icon  { font-size:1.1rem; }
+.wx-label { font-size:0.55rem; font-weight:700; color:#8e8e93; text-transform:uppercase; letter-spacing:0.05em; margin-top:2px; }
+.wx-temp  { font-size:0.8rem; font-weight:900; color:#1c1c1e; }
+.wx-wind  { font-size:0.6rem; color:#636366; }
+.wx-alert-banner {
+  background:#fff3cd; border-left:4px solid #ff9500;
+  border-radius:10px; padding:9px 12px; margin-bottom:10px;
+  font-size:0.72rem; color:#92400e; line-height:1.4;
+}
+.wx-alert-banner.severe { background:#fee2e2; border-left-color:#DC1730; color:#991b1b; }
+
+/* ── Load board ── */
+.load-board-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+.load-card {
+  background:#fff; border-radius:12px; padding:12px 14px; margin-bottom:8px;
+  box-shadow:0 1px 3px rgba(0,0,0,0.06); border-left:3px solid #e5e5ea;
+}
+.load-card.high { border-left-color:#DC1730; }
+.load-card.assigned { border-left-color:#1c1c1e; }
+.load-id { font-size:0.58rem; font-weight:800; color:#8e8e93; text-transform:uppercase; letter-spacing:0.08em; }
+.load-route { font-size:0.85rem; font-weight:800; color:#1c1c1e; margin:2px 0; }
+.load-meta { font-size:0.65rem; color:#636366; }
+.load-assign-row { display:flex; align-items:center; gap:8px; margin-top:8px; }
+.load-select {
+  flex:1; font-size:0.72rem; border:1.5px solid #d1d1d6; border-radius:8px;
+  padding:5px 8px; background:#f2f2f7; color:#1c1c1e;
+}
+.load-assign-btn {
+  background:#DC1730; color:#fff; border:none; border-radius:8px;
+  padding:5px 12px; font-size:0.7rem; font-weight:700; cursor:pointer;
+}
+.load-assigned-tag { font-size:0.65rem; font-weight:700; color:#1c1c1e; background:#f0f0f0; border-radius:6px; padding:3px 8px; }
+
+/* ── Fleet savings banner ── */
+.fleet-savings-banner {
+  background:linear-gradient(135deg,#1c1c1e,#2c2c2e); color:#fff;
+  border-radius:14px; padding:14px 16px; margin-bottom:12px;
+}
+.fsb-eyebrow { font-size:0.58rem; font-weight:800; color:rgba(255,255,255,0.5); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:6px; }
+.fsb-amount { font-size:2rem; font-weight:900; color:#DC1730; line-height:1; }
+.fsb-label  { font-size:0.7rem; color:rgba(255,255,255,0.7); margin-top:2px; }
+.fsb-row    { display:flex; justify-content:space-between; margin-top:10px; }
+.fsb-stat   { text-align:center; }
+.fsb-stat-val { font-size:0.9rem; font-weight:900; color:#fff; display:block; }
+.fsb-stat-key { font-size:0.55rem; color:rgba(255,255,255,0.5); font-weight:600; text-transform:uppercase; letter-spacing:0.06em; }
 
 /* ── Rest POI section ── */
 .poi-section { margin-top: 14px; }
@@ -461,7 +659,7 @@ html, body {
 /* ── Loyalty badge ── */
 .loyalty-banner {
   background: linear-gradient(135deg, #1c1c1e, #3a3a3c);
-  border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; color: #fff;
+  border-radius: 14px; padding: 14px 16px; margin-bottom: 6px; color: #fff;
   display: flex; align-items: center; gap: 12px;
 }
 .loyalty-icon { font-size: 2rem; }
@@ -470,6 +668,29 @@ html, body {
 .loyalty-pts { margin-left: auto; text-align: right; }
 .loyalty-pts span { font-size: 1.4rem; font-weight: 900; color: #DC1730; display: block; }
 .loyalty-pts small { font-size: 0.6rem; opacity: 0.6; }
+
+/* ── Push for Points Elite progress ── */
+.elite-progress-card {
+  background: linear-gradient(135deg, #0a0a0a, #1c1c1e);
+  border: 1px solid #c9a227;
+  border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; color: #fff;
+}
+.elite-progress-top {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+}
+.elite-label { font-size: 0.72rem; font-weight: 600; color: #e0e0e0; letter-spacing: 0.02em; }
+.elite-label strong { color: #c9a227; font-weight: 900; }
+.elite-goal { font-size: 0.65rem; color: #8e8e93; }
+.elite-track {
+  height: 6px; background: #3a3a3c; border-radius: 3px; overflow: hidden; margin-bottom: 6px;
+}
+.elite-fill {
+  height: 100%; background: linear-gradient(90deg, #c9a227, #f0d060);
+  border-radius: 3px; transition: width 0.6s ease;
+}
+.elite-progress-bottom {
+  display: flex; justify-content: space-between; font-size: 0.65rem; color: #8e8e93;
+}
 </style>
 </head>
 <body>
@@ -499,7 +720,7 @@ html, body {
       <div class="badge-row">
         <span class="badge">🅿️ 78% parking</span>
         <span class="badge">⛽ Best price</span>
-        <span class="badge" id="loyalty-badge">🏆 Platinum</span>
+        <span class="badge" id="loyalty-badge">🏆 Elite</span>
       </div>
     </div>
 
@@ -539,36 +760,39 @@ html, body {
     <div class="loyalty-banner">
       <div class="loyalty-icon">🏆</div>
       <div class="loyalty-text">
-        <h4>Platinum Status</h4>
-        <p>2× points on every fill-up</p>
+        <h4 id="loyalty-status-title">Elite Status</h4>
+        <p id="loyalty-status-sub">2× points on every fill-up</p>
       </div>
       <div class="loyalty-pts">
-        <span>12,480</span>
+        <span id="loyalty-pts-val">12,480</span>
         <small>myRewards pts</small>
+      </div>
+    </div>
+    <!-- Push for Points Elite progress bar -->
+    <div class="elite-progress-card" id="elite-progress-card">
+      <div class="elite-progress-top">
+        <span class="elite-label">Push for Points <strong>ELITE</strong></span>
+        <span class="elite-goal" id="elite-goal-text">1,200 gal/mo</span>
+      </div>
+      <div class="elite-track">
+        <div class="elite-fill" id="elite-fill" style="width:0%"></div>
+      </div>
+      <div class="elite-progress-bottom">
+        <span id="elite-gal-done">— gal this month</span>
+        <span id="elite-gal-left" style="color:#DC1730;font-weight:700">— gal to Elite</span>
       </div>
     </div>
 
     <!-- Deals -->
     <div class="section-title">Today's Deals</div>
 
-    <div class="offer-card">
-      <div class="offer-img">🥤</div>
-      <div class="offer-body">
-        <div class="eyebrow" style="color:#DC1730">⏰ This week's BOGO</div>
-        <div class="offer-title">Hydrate With Any Flavor Gatorade</div>
-        <div class="offer-desc">Buy any Gatorade, get one free. This week only at Pilot Flying J.</div>
-        <span class="link-btn">See Offer →</span>
-      </div>
+    <div class="offer-card badge-top-right">
+      <img class="offer-bg" src="/images/gatorade.png" alt="Red Bull Buy 2 Get 1 Free">
+      <div class="offer-badge">BOGO</div>
     </div>
 
     <div class="offer-card">
-      <div class="offer-img">🍕</div>
-      <div class="offer-body">
-        <div class="eyebrow" style="color:#636366">🍽️ Meal Deal</div>
-        <div class="offer-title">$8 Lunch &amp; Dinner Deal</div>
-        <div class="offer-desc">2 XL pizza slices + 20oz fountain drink combo.</div>
-        <span class="link-btn">Order Now →</span>
-      </div>
+      <img class="offer-bg" src="/images/lunch offer.png" alt="$8 Lunch and Dinner Deal">
     </div>
 
     <button class="btn-primary" onclick="switchTab('roadiq')">⚡ View My RoadIQ Journey Plan</button>
@@ -584,7 +808,13 @@ html, body {
       <button class="filter-pill-outline">🚿 Showers</button>
       <button class="filter-pill-outline">🅿️ Parking</button>
     </div>
-    <div id="map"></div>
+    <div id="map" style="display:flex;align-items:center;justify-content:center;background:#1c1c1e;border-radius:14px;margin-bottom:10px;">
+      <div style="text-align:center;color:#636366;padding:24px 0;">
+        <div style="font-size:2rem;margin-bottom:6px">📍</div>
+        <div style="font-size:0.8rem;font-weight:600">Map loads with your AI Journey Plan</div>
+        <div style="font-size:0.72rem;margin-top:4px">Build a trip on the Plan Trip tab to see your route</div>
+      </div>
+    </div>
     <div class="section-title">On Your Route</div>
     <div class="stop-card">
       <div class="eyebrow" style="color:#DC1730">⭐ RoadIQ Recommended</div>
@@ -607,7 +837,7 @@ html, body {
       <div class="alert-title">James Okafor · Nashville → Atlanta</div>
       <div class="badge-row">
         <span class="badge">🚨 Fuel Risk</span>
-        <span class="badge">🏆 Platinum</span>
+        <span class="badge">🏆 Elite</span>
         <span class="badge">140 mi left</span>
       </div>
     </div>
@@ -665,8 +895,54 @@ html, body {
     <div class="hos-bar-wrap">
       <div class="hos-labels"><span>0h</span><span>8h (required rest)</span><span>11h limit</span></div>
       <div class="hos-track">
-        <div class="hos-fill" id="hos-fill" style="width:0%;background:#30d158"></div>
+        <div class="hos-fill" id="hos-fill" style="width:0%;background:#DC1730"></div>
       </div>
+    </div>
+
+    <!-- Fuel level -->
+    <div class="input-label" style="margin-bottom:5px;margin-top:12px">⛽ Current fuel level</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+      <input type="range" id="fuel-slider" min="0" max="100" step="5" value="50"
+        style="flex:1;accent-color:#DC1730" oninput="updateFuelLevel(this.value)">
+      <span id="fuel-display" style="font-size:0.8rem;font-weight:800;color:#1c1c1e;min-width:36px">50%</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:0.62rem;color:#aeaeb2;margin-bottom:4px">
+      <span>Empty</span><span id="fuel-range-label">~280 mi range</span><span>Full</span>
+    </div>
+
+    <!-- Arrival deadline -->
+    <div class="adv-inputs-row" style="display:flex;gap:10px;margin-top:12px">
+      <div style="flex:1">
+        <div class="input-label" style="margin-bottom:5px">🕐 Must arrive by</div>
+        <input class="route-input" id="arrive-by" type="time" value=""
+          style="padding:10px 12px;font-size:0.85rem;color:#1c1c1e"
+          placeholder="No deadline">
+      </div>
+      <div style="flex:1">
+        <div class="input-label" style="margin-bottom:5px">📅 Arrival date</div>
+        <input class="route-input" id="arrive-date" type="date"
+          style="padding:10px 12px;font-size:0.85rem;color:#1c1c1e">
+      </div>
+    </div>
+
+    <!-- Cargo type -->
+    <div class="input-label" style="margin-bottom:8px;margin-top:12px">📦 Cargo type</div>
+    <div class="prefs-row" id="cargo-row">
+      <button class="pref-chip selected" onclick="selectCargo(this,'general')">📦 General</button>
+      <button class="pref-chip" onclick="selectCargo(this,'refrigerated')">🧊 Refrigerated</button>
+      <button class="pref-chip" onclick="selectCargo(this,'hazmat')">☢️ Hazmat</button>
+      <button class="pref-chip" onclick="selectCargo(this,'oversize')">🚛 Oversize</button>
+      <button class="pref-chip" onclick="selectCargo(this,'flatbed')">🪵 Flatbed</button>
+    </div>
+
+    <!-- Route memory banner (shown when repeat route detected) -->
+    <div class="route-memory-banner" id="route-memory-banner">
+      <div class="rmb-icon">🧠</div>
+      <div class="rmb-body">
+        <div class="rmb-title" id="rmb-title">Running your usual route?</div>
+        <div class="rmb-sub" id="rmb-sub">Tap to load your last trip instantly</div>
+      </div>
+      <button class="rmb-btn" onclick="loadRepeatRoute()">Go →</button>
     </div>
 
     <button class="btn-primary" id="plan-go-btn" onclick="buildTrip()">🗺️ Build My Optimized Route</button>
@@ -674,8 +950,26 @@ html, body {
     <!-- Results -->
     <div id="plan-results" style="display:none">
 
+      <!-- Proactive re-route alert (fires ~15s after trip builds) -->
+      <div class="reroute-banner" id="reroute-banner">
+        <div class="rb-eyebrow"><span class="reroute-pulse"></span>RoadIQ is watching your route</div>
+        <div class="rb-title" id="reroute-title">Parking filling up at your stop</div>
+        <div class="rb-body" id="reroute-body">Pilot Knoxville #198 just hit 91% capacity. Want to see alternatives with more availability?</div>
+        <div class="rb-actions">
+          <button class="rb-btn-alt" onclick="showRerouteAlternatives()">Show Alternatives</button>
+          <button class="rb-btn-keep" onclick="dismissReroute()">Keep My Plan</button>
+        </div>
+      </div>
+
       <!-- Route map -->
       <div id="plan-map"></div>
+
+      <!-- Weather ribbon -->
+      <div id="weather-section" style="display:none">
+        <div class="section-title" style="margin-top:10px;margin-bottom:4px">🌤️ Weather Along Route</div>
+        <div id="weather-alert" style="display:none"></div>
+        <div class="weather-ribbon" id="weather-ribbon"></div>
+      </div>
 
       <!-- Summary bar -->
       <div class="summary-bar" id="plan-summary"></div>
@@ -691,7 +985,7 @@ html, body {
 
       <!-- Cost savings breakdown -->
       <div class="savings-detail" id="savings-detail" style="display:none">
-        <div class="eyebrow" style="color:#30d158;margin-bottom:8px">💰 Cost Savings Breakdown</div>
+        <div class="eyebrow" style="color:#DC1730;margin-bottom:8px">💰 Cost Savings Breakdown</div>
         <div class="savings-row"><span>Retail diesel price</span><span id="sd-retail">—</span></div>
         <div class="savings-row"><span>Pilot fleet price</span><span id="sd-fleet">—</span></div>
         <div class="savings-row"><span>Savings per gallon</span><span class="green" id="sd-per-gal">—</span></div>
@@ -718,16 +1012,48 @@ html, body {
       <div class="section-title">Your Itinerary</div>
       <div class="itinerary" id="plan-itinerary"></div>
 
-      <!-- All stops on route -->
-      <div class="section-title" style="margin-top:4px">All Pilot Stops on Your Route</div>
-      <div style="font-size:0.7rem;color:#636366;margin-bottom:10px">Tap any stop to ask RoadIQ if it's right for you</div>
-      <div id="all-stops-list"></div>
+      <!-- Stop view toggle -->
+      <div class="stop-filter-bar" id="stop-filter-bar">
+        <button class="sfb-btn active" id="sfb-optimized" onclick="setStopFilter('optimized')">⭐ Optimized</button>
+        <button class="sfb-btn" id="sfb-all" onclick="setStopFilter('all')">🗺️ All Stops</button>
+        <button class="sfb-btn" id="sfb-competitors" onclick="setStopFilter('competitors')">📍 Compare Stops</button>
+      </div>
 
-      <!-- Rest POI (shown when HOS >= 4h rest needed) -->
+      <!-- All Pilot stops (optimized + all) -->
+      <div id="pilot-stops-section">
+        <div class="section-title" style="margin-top:4px" id="stops-section-title">All Pilot Stops on Your Route</div>
+        <div style="font-size:0.7rem;color:#636366;margin-bottom:10px" id="stops-section-sub">Tap any stop to ask RoadIQ if it's right for you</div>
+        <div id="all-stops-list"></div>
+      </div>
+
+      <!-- Compare Stops view -->
+      <div id="competitor-section" style="display:none">
+        <div class="section-title" style="margin-top:4px">📍 Stops Along Your Route</div>
+        <div style="font-size:0.7rem;color:#636366;margin-bottom:10px">Tap any stop to navigate. Pilot fleet pricing shown where available.</div>
+        <div id="competitor-list"></div>
+      </div>
+
+      <!-- Break Time POI (shown when HOS >= 4h rest needed) -->
       <div id="rest-poi-section" style="display:none">
-        <div class="section-title" style="margin-top:4px">🛏️ Rest Stop Nearby</div>
-        <div style="font-size:0.7rem;color:#636366;margin-bottom:10px">Places near your stop for a 4-5 hour rest</div>
+        <div class="section-title" style="margin-top:4px">🕐 Things To Do On Your Break</div>
+        <div style="font-size:0.7rem;color:#636366;margin-bottom:10px">Places to spend your time near this stop</div>
         <div id="rest-poi-list" class="poi-section"></div>
+      </div>
+
+      <!-- Next Load Opportunities -->
+      <div class="load-opps-section" id="load-opps-section" style="display:none">
+        <div class="load-opps-header">
+          <span class="load-opps-title">⚡ Next Load Opportunities</span>
+          <span class="opp-cost-chip" id="opp-cost-chip">Loading…</span>
+        </div>
+        <div id="load-opp-list"></div>
+        <div class="load-claimed-confirm" id="load-claimed-confirm">
+          <span style="font-size:1.5rem">✅</span>
+          <div>
+            <div style="font-size:0.82rem;font-weight:800">Load Claimed!</div>
+            <div style="font-size:0.72rem;color:rgba(255,255,255,0.65);margin-top:1px" id="load-claimed-detail"></div>
+          </div>
+        </div>
       </div>
 
       <button class="btn-secondary" style="margin-top:4px" onclick="switchTab('chat')">💬 Ask RoadIQ about this route</button>
@@ -742,19 +1068,72 @@ html, body {
       <div class="advice-stop-name" id="advice-stop-name"></div>
       <div class="advice-verdict loading" id="advice-verdict"><span class="spinner"></span> Asking RoadIQ…</div>
       <div style="display:flex;gap:8px;margin-top:4px" id="advice-stop-pills"></div>
-      <button class="btn-primary" style="margin-top:16px;margin-bottom:0" onclick="closeAdvice()">Got it</button>
+
+      <!-- Reservation CTA -->
+      <div class="reserve-section" id="reserve-section" style="display:none;margin-top:14px;border-top:1px solid #f0f0f0;padding-top:14px">
+        <div style="font-size:0.7rem;font-weight:800;color:#636366;margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">Reserve at This Stop</div>
+        <div style="display:flex;gap:8px">
+          <button class="reserve-btn" onclick="makeReservation('parking')" style="flex:1;display:flex;align-items:center;gap:8px;text-align:left">
+            <span style="font-size:1.4rem;line-height:1">🅿️</span>
+            <span style="font-size:0.75rem;font-weight:700;color:#1c1c1e">Reserve Parking</span>
+          </button>
+          <button class="reserve-btn" onclick="makeReservation('shower')" style="flex:1;display:flex;align-items:center;gap:8px;text-align:left">
+            <span style="font-size:1.4rem;line-height:1">🚿</span>
+            <span style="font-size:0.75rem;font-weight:700;color:#1c1c1e">Reserve Shower</span>
+          </button>
+        </div>
+        <div class="reserve-confirm" id="reserve-confirm" style="display:flex;align-items:center;gap:10px;margin-top:8px">
+          <span style="font-size:1.4rem;line-height:1" id="rc-icon">🅿️</span>
+          <div>
+            <div style="font-size:0.82rem;font-weight:800;color:#fff" id="rc-label">Parking Reserved!</div>
+            <div style="font-size:0.72rem;color:rgba(255,255,255,0.65);margin-top:1px">Confirmation # <span class="rc-code" id="rc-code"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="nav-btn" id="advice-nav-btn" onclick="navigateToStop()" style="flex:1">🧭 Start Navigation</button>
+        <button class="btn-primary" style="margin-top:0;flex:1" onclick="closeAdvice()">Got it</button>
+      </div>
     </div>
   </div>
 
   <!-- Fleet Manager Screen -->
   <div class="screen" id="screen-fleet">
     <div class="section-title" style="margin-top:0">Fleet Manager</div>
+
+    <!-- KPI row -->
     <div class="fleet-kpi-row" id="fleet-kpis">
       <div class="fleet-kpi"><span class="kpi-val" id="kpi-total">—</span><span class="kpi-lbl">Drivers</span></div>
       <div class="fleet-kpi risk"><span class="kpi-val" id="kpi-risk">—</span><span class="kpi-lbl">Fuel Risk</span></div>
       <div class="fleet-kpi risk"><span class="kpi-val" id="kpi-maint">—</span><span class="kpi-lbl">Maint. Alert</span></div>
       <div class="fleet-kpi"><span class="kpi-val" id="kpi-route">—</span><span class="kpi-lbl">On Route</span></div>
     </div>
+
+    <!-- Fleet savings vs competitor -->
+    <div class="fleet-savings-banner" id="fleet-savings-banner">
+      <div class="fsb-eyebrow">Pilot vs. National Avg Diesel</div>
+      <div class="fsb-amount" id="fsb-weekly">—</div>
+      <div class="fsb-label">estimated fleet savings this week</div>
+      <div class="fsb-row">
+        <div class="fsb-stat"><span class="fsb-stat-val" id="fsb-pilot-price">—</span><span class="fsb-stat-key">Pilot $/gal</span></div>
+        <div class="fsb-stat"><span class="fsb-stat-val" id="fsb-avg-price">—</span><span class="fsb-stat-key">Natl Avg $/gal</span></div>
+        <div class="fsb-stat"><span class="fsb-stat-val" id="fsb-per-gal">—</span><span class="fsb-stat-key">Savings/gal</span></div>
+        <div class="fsb-stat"><span class="fsb-stat-val" id="fsb-annual">—</span><span class="fsb-stat-key">Annual Est.</span></div>
+      </div>
+    </div>
+
+    <!-- Load assignment board -->
+    <div class="load-board-header">
+      <div class="section-title" style="margin:0">Load Board</div>
+      <span style="font-size:0.65rem;color:#8e8e93">5 open loads</span>
+    </div>
+    <div id="load-board">
+      <div style="text-align:center;padding:20px;color:#8e8e93;font-size:0.8rem"><span class="spinner"></span> Loading…</div>
+    </div>
+
+    <!-- Driver list -->
+    <div class="section-title" style="margin-top:4px">Drivers</div>
     <div id="fleet-list">
       <div style="text-align:center;padding:30px;color:#8e8e93;font-size:0.8rem"><span class="spinner"></span> Loading fleet…</div>
     </div>
@@ -769,7 +1148,7 @@ html, body {
     <div class="quick-prompts">
       <button class="qp-btn" onclick="sendQuick('Best fuel price on my route?')">⛽ Best fuel price?</button>
       <button class="qp-btn" onclick="sendQuick('Is there parking at Knoxville #198?')">🅿️ Parking available?</button>
-      <button class="qp-btn" onclick="sendQuick('How do I earn more Platinum points?')">🏆 Earn more points?</button>
+      <button class="qp-btn" onclick="sendQuick('How do I reach Elite status with Push for Points?')">🏆 Earn more points?</button>
       <button class="qp-btn" onclick="sendQuick('Shower wait time at my next stop?')">🚿 Shower wait?</button>
     </div>
     <div class="chat-messages" id="chat-messages">
@@ -830,7 +1209,47 @@ function updateHOS(val) {
   const pct = (h / 11) * 100;
   const fill = document.getElementById('hos-fill');
   fill.style.width = pct + '%';
-  fill.style.background = h >= 8 ? '#DC1730' : h >= 6 ? '#ff9500' : '#30d158';
+  fill.style.background = h >= 8 ? '#DC1730' : h >= 6 ? '#ff9500' : '#1c1c1e';
+}
+
+// ── Fuel level slider ─────────────────────────────────────────────────────────
+const TRUCK_TANK_GAL = 150; // typical dual-tank semi
+const TRUCK_MPG = 6.5;
+function updateFuelLevel(val) {
+  const pct = parseInt(val);
+  const gal = Math.round(TRUCK_TANK_GAL * pct / 100);
+  const rangeMi = Math.round(gal * TRUCK_MPG);
+  document.getElementById('fuel-display').textContent = pct + '%';
+  document.getElementById('fuel-range-label').textContent = `~${rangeMi} mi range`;
+}
+
+// ── Cargo selector ────────────────────────────────────────────────────────────
+let _selectedCargo = 'general';
+const CARGO_CONSTRAINTS = {
+  general:      { note: null },
+  refrigerated: { note: 'Requires stops with refrigerated parking or temperature-controlled dock access.' },
+  hazmat:       { note: 'Hazmat regulations restrict allowable stops — some locations cannot accept hazmat vehicles. Only Pilot/FJ stops with hazmat approval shown.' },
+  oversize:     { note: 'Oversize load requires stops with pull-through parking and sufficient turning radius. Low-clearance routes flagged.' },
+  flatbed:      { note: 'Flatbed load — verify stop has tarping area and open-air parking.' },
+};
+function selectCargo(el, type) {
+  document.querySelectorAll('#cargo-row .pref-chip').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  _selectedCargo = type;
+  const note = CARGO_CONSTRAINTS[type]?.note;
+  let banner = document.getElementById('cargo-note-banner');
+  if (note) {
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'cargo-note-banner';
+      banner.style.cssText = 'background:#fff0f0;border-left:3px solid #DC1730;border-radius:8px;padding:8px 10px;font-size:0.7rem;color:#1c1c1e;margin-top:6px;line-height:1.4';
+      document.getElementById('cargo-row').after(banner);
+    }
+    banner.textContent = note;
+    banner.style.display = 'block';
+  } else if (banner) {
+    banner.style.display = 'none';
+  }
 }
 
 // ── Fleet Manager ─────────────────────────────────────────────────────────────
@@ -838,6 +1257,8 @@ let _maintData = {};
 
 function loadFleet() {
   fleetLoaded = true;
+  loadFleetSavings();
+  loadLoadBoard();
   // Load fleet + maintenance in parallel
   Promise.all([
     fetch('/api/fleet').then(r => r.json()),
@@ -856,7 +1277,7 @@ function loadFleet() {
     const list = document.getElementById('fleet-list');
     list.innerHTML = data.drivers.map(d => {
       const initials = d.name.split(' ').map(n=>n[0]).join('').slice(0,2);
-      const fuelColor = d.fuel_pct < 25 ? '#DC1730' : d.fuel_pct < 50 ? '#ff9500' : '#30d158';
+      const fuelColor = d.fuel_pct < 25 ? '#DC1730' : d.fuel_pct < 50 ? '#ff9500' : '#1c1c1e';
       const isRisk = d.status === 'fuel_risk';
       const m = maint[String(d.id)] || {};
 
@@ -906,7 +1327,7 @@ function showDriverMaint(driverId) {
   document.getElementById('advice-stop-name').textContent = 'Truck Maintenance Alerts';
   document.getElementById('advice-verdict').className = 'advice-verdict';
   document.getElementById('advice-verdict').innerHTML = lines ||
-    '<span style="color:#30d158">✅ No maintenance issues</span>';
+    '<span style="color:#1c1c1e">✅ No maintenance issues</span>';
   document.getElementById('advice-stop-pills').innerHTML = `
     <span class="pill">🧪 DEF ${m.def_pct}%</span>
     <span class="pill">🛢️ Oil ${m.oil_life_pct}%</span>
@@ -932,9 +1353,116 @@ function loadHomeMaintenance() {
     }).catch(() => {});
 }
 
+// ── Fleet savings vs competitor ───────────────────────────────────────────────
+function loadFleetSavings() {
+  fetch('/api/fleet_savings').then(r => r.json()).then(d => {
+    document.getElementById('fsb-weekly').textContent    = '$' + d.fleet_weekly.toLocaleString();
+    document.getElementById('fsb-pilot-price').textContent = '$' + d.pilot_price.toFixed(3);
+    document.getElementById('fsb-avg-price').textContent   = '$' + d.benchmark_price.toFixed(3);
+    document.getElementById('fsb-per-gal').textContent     = '-$' + d.per_gal_savings.toFixed(3);
+    document.getElementById('fsb-annual').textContent      = '$' + d.fleet_annual.toLocaleString();
+  }).catch(() => {});
+}
+
+// ── Load board ────────────────────────────────────────────────────────────────
+let _fleetDrivers = [];
+
+function loadLoadBoard(skipDriverFetch) {
+  const fetches = [fetch('/api/loads').then(r => r.json())];
+  if (!skipDriverFetch || !_fleetDrivers.length) {
+    fetches.push(fetch('/api/fleet').then(r => r.json()).catch(() => ({drivers:[]})));
+  }
+  Promise.all(fetches).then(([loadsData, fleetData]) => {
+    if (fleetData) _fleetDrivers = fleetData.drivers || [];
+    renderLoadBoard(loadsData.loads);
+  }).catch(() => {
+    document.getElementById('load-board').innerHTML =
+      '<div style="color:#DC1730;font-size:0.75rem;padding:8px">Could not load board.</div>';
+  });
+}
+
+function renderLoadBoard(loads) {
+  const driverOptions = _fleetDrivers.map(d =>
+    `<option value="${d.id}">${d.name} (${d.fuel_miles}mi fuel)</option>`
+  ).join('');
+
+  document.getElementById('load-board').innerHTML = loads.map(l => {
+    const isHigh = l.priority === 'high';
+    const isAssigned = !!l.assigned_driver;
+    const assignedTag = isAssigned
+      ? `<span class="load-assigned-tag">✅ ${l.driver_name}</span>`
+      : `<div class="load-assign-row">
+           <select class="load-select" id="sel-${l.id}">
+             <option value="">— Assign driver —</option>
+             ${driverOptions}
+           </select>
+           <button class="load-assign-btn" onclick="assignLoad('${l.id}')">Assign</button>
+         </div>`;
+    return `<div class="load-card ${isHigh ? 'high' : ''} ${isAssigned ? 'assigned' : ''}">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="load-id">${l.id}</span>
+        ${isHigh ? '<span style="font-size:0.6rem;font-weight:800;color:#DC1730;background:#fee2e2;padding:2px 7px;border-radius:6px">HIGH PRIORITY</span>' : ''}
+      </div>
+      <div class="load-route">${l.origin} → ${l.destination}</div>
+      <div class="load-meta">${l.cargo} · ${l.miles} mi · Pickup ${l.pickup} · Deliver by ${l.deliver_by}</div>
+      ${assignedTag}
+    </div>`;
+  }).join('');
+}
+
+function assignLoad(loadId) {
+  const sel = document.getElementById('sel-' + loadId);
+  const driverId = sel.value;
+  if (!driverId) return;
+  const driver = _fleetDrivers.find(d => String(d.id) === String(driverId));
+  const driverName = driver ? driver.name : driverId;
+  fetch('/api/loads/assign', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({load_id: loadId, driver_id: driverId, driver_name: driverName})
+  }).then(r => r.json()).then(res => {
+    if (res.ok) loadLoadBoard(true);
+  }).catch(() => {});
+}
+
+// ── Weather along route ───────────────────────────────────────────────────────
+function loadWeather(routeCoords) {
+  if (!routeCoords || routeCoords.length < 2) return;
+  fetch('/api/weather', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({route_coords: routeCoords})
+  }).then(r => r.json()).then(data => {
+    const section = document.getElementById('weather-section');
+    section.style.display = 'block';
+
+    // Alert banner for severe/caution
+    const alertEl = document.getElementById('weather-alert');
+    if (data.overall_severity === 'severe') {
+      alertEl.style.display = 'block';
+      alertEl.className = 'wx-alert-banner severe';
+      alertEl.innerHTML = '⛈️ <strong>Severe weather along route</strong> — high winds or storms detected. Check conditions before departing.';
+    } else if (data.overall_severity === 'caution') {
+      alertEl.style.display = 'block';
+      alertEl.className = 'wx-alert-banner';
+      alertEl.innerHTML = '⚠️ <strong>Use caution</strong> — wind or precipitation detected on parts of your route.';
+    } else {
+      alertEl.style.display = 'none';
+    }
+
+    document.getElementById('weather-ribbon').innerHTML = data.points.map(p => `
+      <div class="wx-chip ${p.severity}">
+        <div class="wx-icon">${p.icon}</div>
+        <div class="wx-label">${p.label}</div>
+        <div class="wx-temp">${p.temp_f}°F</div>
+        <div class="wx-wind">${p.wind_mph}mph</div>
+      </div>`).join('');
+  }).catch(() => {});
+}
+
 // ── Rest POI ──────────────────────────────────────────────────────────────────
-const POI_ICONS = { grocery:'🛒', laundry:'👕', pharmacy:'💊', gym:'🏋️', library:'📚', food:'🍔' };
-const POI_LABELS = { grocery:'Grocery', laundry:'Laundry', pharmacy:'Pharmacy', gym:'Gym / Fitness', library:'Library', food:'Food & Dining' };
+const POI_ICONS = { food:'🍽️', cafe:'☕', gym:'🏋️', park:'🌳', library:'📚', cinema:'🎬', mall:'🛍️', bowling:'🎳', laundry:'👕', pharmacy:'💊' };
+const POI_LABELS = { food:'Eat & Drink', cafe:'Coffee & Cafés', gym:'Gym / Fitness', park:'Parks & Outdoors', library:'Library', cinema:'Movies', mall:'Shopping', bowling:'Bowling / Games', laundry:'Laundry', pharmacy:'Pharmacy' };
 
 function loadRestPOI(stops) {
   // Only show if HOS slider >= 4h (rest needed)
@@ -954,21 +1482,28 @@ function loadRestPOI(stops) {
   fetch('/api/poi', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ lat: stop.lat, lon: stop.lon, radius_m: 4000 })
+    body: JSON.stringify({ lat: stop.lat, lon: stop.lon, radius_m: 8000 })
   })
   .then(r => r.json())
   .then(data => {
     const poi = data.poi || {};
-    const cats = Object.keys(poi).filter(c => poi[c] && poi[c].length);
+    const isFallback = poi._fallback === true;
+    const cats = Object.keys(poi).filter(c => c !== '_fallback' && poi[c] && poi[c].length);
     if (!cats.length) {
       document.getElementById('rest-poi-list').innerHTML =
-        '<div style="color:#8e8e93;font-size:0.75rem;padding:8px 0">No nearby places found within 4km of this stop.</div>';
+        '<div style="color:#8e8e93;font-size:0.75rem;padding:8px 0">No nearby places found within 8km of this stop.</div>';
       return;
     }
-    document.getElementById('rest-poi-list').innerHTML = cats.map(cat => {
+    const fallbackNote = isFallback
+      ? `<div style="font-size:0.65rem;color:#8e8e93;margin-bottom:8px;padding:4px 8px;background:#f2f2f7;border-radius:6px">
+           📍 Showing typical amenities near this type of stop
+         </div>`
+      : '';
+    const items = cats.map(cat => {
       const places = poi[cat].slice(0, 3);
       const cards = places.map(p => {
-        const distStr = p.dist_m < 1000 ? `${p.dist_m}m away` : `${(p.dist_m/1000).toFixed(1)}km away`;
+        const distStr = isFallback ? 'nearby'
+          : (p.dist_m < 1000 ? `${p.dist_m}m away` : `${(p.dist_m/1000).toFixed(1)}km away`);
         return `<div class="poi-card">
           <div class="poi-icon">${POI_ICONS[cat]||'📍'}</div>
           <div><div class="poi-name">${p.name}</div><div class="poi-dist">${distStr}</div></div>
@@ -979,6 +1514,7 @@ function loadRestPOI(stops) {
         ${cards}
       </div>`;
     }).join('');
+    document.getElementById('rest-poi-list').innerHTML = fallbackNote + items;
   })
   .catch(() => {
     document.getElementById('rest-poi-list').innerHTML =
@@ -1111,6 +1647,7 @@ let planMap = null;
 let planMapInit = false;
 let lastPlanData = null;
 let lastFrom = '', lastTo = '', lastPrefs = [], lastHos = 0;
+let lastFuelPct = 50, lastCargo = 'general', lastArriveBy = null;
 
 function togglePref(el, key) { el.classList.toggle('selected'); }
 
@@ -1129,15 +1666,29 @@ function buildTrip() {
   btn.innerHTML = '<span class="spinner"></span>Optimizing route…';
   document.getElementById('plan-results').style.display = 'none';
 
-  const prefs = getSelectedPrefs();
+  const prefs   = getSelectedPrefs();
+  const hosVal  = parseFloat(document.getElementById('hos-slider').value) || 0;
+  const fuelPct = parseInt(document.getElementById('fuel-slider').value) || 50;
+  const fuelGal = Math.round(TRUCK_TANK_GAL * fuelPct / 100);
+  const fuelRangeMi = Math.round(fuelGal * TRUCK_MPG);
+  const arriveTime = document.getElementById('arrive-by').value || null;
+  const arriveDate = document.getElementById('arrive-date').value || null;
+  const arriveBy = (arriveDate && arriveTime) ? `${arriveDate} ${arriveTime}`
+                 : arriveTime ? `today ${arriveTime}`
+                 : null;
+  const cargo = _selectedCargo || 'general';
 
-  const hosVal = parseFloat(document.getElementById('hos-slider').value) || 0;
   lastFrom = from; lastTo = to; lastPrefs = prefs; lastHos = hosVal;
+  lastFuelPct = fuelPct; lastCargo = cargo; lastArriveBy = arriveBy;
 
   fetch('/api/plan', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from, to, prefs, hos_hours_driven: hosVal })
+    body: JSON.stringify({
+      from, to, prefs, hos_hours_driven: hosVal,
+      fuel_pct: fuelPct, fuel_gal: fuelGal, fuel_range_mi: fuelRangeMi,
+      cargo_type: cargo, arrive_by: arriveBy,
+    })
   })
   .then(r => r.json())
   .then(data => {
@@ -1161,6 +1712,33 @@ function renderTrip(data) {
     <div class="summary-stat"><span class="summary-val">${data.stops.length}</span><span class="summary-key">Pilot Stops</span></div>
     <div class="summary-stat"><span class="summary-val">${data.total_gallons} gal</span><span class="summary-key">Est. Fuel</span></div>
   `;
+
+  // Journey context chips (fuel, cargo, deadline)
+  const jc = data.journey_context || {};
+  const chips = [];
+  if (jc.fuel_pct != null) {
+    const fuelColor = jc.fuel_pct <= 25 ? '#DC1730' : '#1c1c1e';
+    chips.push(`<span style="background:#f2f2f7;border-radius:20px;padding:4px 10px;font-size:0.7rem;font-weight:700;color:${fuelColor}">⛽ ${jc.fuel_pct}% fuel · ~${jc.fuel_range_mi} mi range</span>`);
+  }
+  if (jc.cargo_type && jc.cargo_type !== 'general') {
+    const cargoIcons = {refrigerated:'🧊',hazmat:'☢️',oversize:'🚛',flatbed:'🪵'};
+    chips.push(`<span style="background:#fff0f0;border-radius:20px;padding:4px 10px;font-size:0.7rem;font-weight:700;color:#DC1730">${cargoIcons[jc.cargo_type]||'📦'} ${jc.cargo_type.charAt(0).toUpperCase()+jc.cargo_type.slice(1)}</span>`);
+  }
+  if (jc.arrive_by) {
+    chips.push(`<span style="background:#f2f2f7;border-radius:20px;padding:4px 10px;font-size:0.7rem;font-weight:700;color:#1c1c1e">🕐 Arrive by ${jc.arrive_by.split(' ')[1] || jc.arrive_by}</span>`);
+  }
+  if (jc.num_stops_needed > 1) {
+    chips.push(`<span style="background:#f2f2f7;border-radius:20px;padding:4px 10px;font-size:0.7rem;font-weight:700;color:#1c1c1e">📍 ${jc.num_stops_needed} stops optimized</span>`);
+  }
+  let ctxBar = document.getElementById('journey-context-bar');
+  if (!ctxBar) {
+    ctxBar = document.createElement('div');
+    ctxBar.id = 'journey-context-bar';
+    ctxBar.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px';
+    document.getElementById('plan-summary').after(ctxBar);
+  }
+  ctxBar.innerHTML = chips.join('');
+  ctxBar.style.display = chips.length ? 'flex' : 'none';
 
   // Savings banner
   document.getElementById('savings-val').textContent = data.savings || '$0';
@@ -1206,7 +1784,7 @@ function renderTrip(data) {
       <div class="eyebrow" style="color:#DC1730;margin-bottom:8px">🎁 Your Active Offers</div>
       ${data.offers.map(o => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f2f2f7;font-size:0.8rem">
         <span style="color:#1c1c1e">${o.offer_type || 'Special Offer'}</span>
-        <span style="font-weight:800;color:#30d158">$${(o.offer_value||0).toFixed(2)} off</span>
+        <span style="font-weight:800;color:#DC1730">$${(o.offer_value||0).toFixed(2)} off</span>
       </div>`).join('')}
     </div>`;
   } else {
@@ -1250,14 +1828,32 @@ function renderTrip(data) {
   // Map
   renderPlanMap(data);
 
+  // Reset filter to optimized on new trip
+  _currentStopFilter = 'optimized';
+  ['optimized','all','competitors'].forEach(m => {
+    document.getElementById('sfb-' + m).classList.toggle('active', m === 'optimized');
+  });
+  document.getElementById('pilot-stops-section').style.display = 'block';
+  document.getElementById('competitor-section').style.display = 'none';
+  document.getElementById('competitor-section').dataset.loaded = '';
+  document.getElementById('stops-section-title').textContent = 'AI-Optimized Stops';
+  document.getElementById('stops-section-sub').textContent = 'RoadIQ selected these for you — tap to ask why';
+
   // All stops picker
-  renderAllStops(data);
+  renderAllStops(data, 'optimized');
 
   // Rest POI (only when HOS >= 4h)
   loadRestPOI(data.all_stops || []);
 
+  // Weather along route
+  loadWeather(data.route_coords || []);
+
   document.getElementById('plan-results').style.display = 'block';
   document.getElementById('plan-results').scrollIntoView({ behavior: 'smooth' });
+
+  scheduleRerouteAlert(data);
+  saveRouteMemory(lastFrom, lastTo);
+  loadReturnOpps();
 }
 
 // ── Plan map (SVG — no tiles, instant render) ─────────────────────────────────
@@ -1326,7 +1922,7 @@ function renderPlanMap(data) {
   // Destination dot
   if (data.to_coords) {
     const x = tx(data.to_coords[1]).toFixed(1), y = ty(data.to_coords[0]).toFixed(1);
-    svg += `<circle cx="${x}" cy="${y}" r="7" fill="#30d158" stroke="#1c1c1e" stroke-width="2"/>`;
+    svg += `<circle cx="${x}" cy="${y}" r="7" fill="#ffffff" stroke="#1c1c1e" stroke-width="2"/>`;
     svg += `<text x="${+x+10}" y="${+y+4}" font-size="9" fill="#ebebf5" font-family="system-ui,sans-serif">🏁 ${data.to||'Dest'}</text>`;
   }
 
@@ -1339,10 +1935,93 @@ function renderPlanMap(data) {
   el.innerHTML = svg;
 }
 
+// ── Stop filter toggle ────────────────────────────────────────────────────────
+let _currentStopFilter = 'optimized';
+
+function setStopFilter(mode) {
+  _currentStopFilter = mode;
+  ['optimized','all','competitors'].forEach(m => {
+    document.getElementById('sfb-' + m).classList.toggle('active', m === mode);
+  });
+  const pilotSection = document.getElementById('pilot-stops-section');
+  const compSection  = document.getElementById('competitor-section');
+  if (mode === 'competitors') {
+    pilotSection.style.display = 'none';
+    compSection.style.display  = 'block';
+    if (!compSection.dataset.loaded) loadCompetitors();
+  } else {
+    pilotSection.style.display = 'block';
+    compSection.style.display  = 'none';
+    const title = document.getElementById('stops-section-title');
+    const sub   = document.getElementById('stops-section-sub');
+    if (mode === 'optimized') {
+      title.textContent = 'AI-Optimized Stops';
+      sub.textContent   = 'RoadIQ selected these for you — tap to ask why';
+    } else {
+      title.textContent = 'All Pilot Stops on Your Route';
+      sub.textContent   = 'Tap any stop to ask RoadIQ if it\'s right for you';
+    }
+    if (lastPlanData) renderAllStops(lastPlanData, mode);
+  }
+}
+
+function loadCompetitors() {
+  const el = document.getElementById('competitor-list');
+  el.innerHTML = '<div style="text-align:center;padding:20px;color:#8e8e93;font-size:0.75rem"><span class="spinner"></span> Loading competitor data…</div>';
+  fetch('/api/competitors').then(r => r.json()).then(data => {
+    document.getElementById('competitor-section').dataset.loaded = '1';
+    const avgAdv = data.avg_pilot_advantage;
+    const pilotPrice = data.pilot_fleet_price;
+    el.innerHTML = `
+      <div class="comp-summary-banner">
+        <div>
+          <div class="comp-summary-val">$${avgAdv.toFixed(3)}/gal</div>
+          <div class="comp-summary-label">avg Pilot fleet savings vs competitors on this route</div>
+        </div>
+        <div style="font-size:1.8rem;margin-left:auto">🏆</div>
+      </div>
+      ${data.competitors.map(c => renderCompetitorCard(c, pilotPrice)).join('')}
+    `;
+  }).catch(() => {
+    el.innerHTML = '<div style="color:#DC1730;font-size:0.75rem;padding:8px">Could not load competitor data.</div>';
+  });
+}
+
+function renderCompetitorCard(c, pilotPrice) {
+  const savings = (c.diesel_price - pilotPrice).toFixed(3);
+  const perks = c.nearest_pilot.perks.map(p => `<li>${p}</li>`).join('');
+  const missing = c.missing_vs_pilot.map(m => `<span class="comp-missing-tag">✗ ${m}</span>`).join('');
+  const pilotNavName = encodeURIComponent(c.nearest_pilot.name + ', ' + c.nearest_pilot.city);
+  const compNavName  = encodeURIComponent(c.name + ', ' + c.city + ', ' + c.state);
+  return `
+    <div class="competitor-card">
+      <div class="comp-header">
+        <div>
+          <div class="comp-brand">${c.brand}</div>
+          <div class="comp-name">${c.name}</div>
+          <div class="comp-meta">Mile ${c.mile_marker} · ${c.city}, ${c.state}</div>
+        </div>
+        <div class="comp-price">$${c.diesel_price.toFixed(3)}<small>retail diesel</small></div>
+      </div>
+      <div class="comp-missing">${missing}</div>
+      <div class="pilot-win-card">
+        <div class="pilot-win-header">
+          <div class="pilot-win-title">⛽ Pilot is ${c.nearest_pilot.miles_away} mi away</div>
+          <div class="pilot-win-price">$${pilotPrice.toFixed(3)}<span style="font-size:0.6rem;font-weight:500;color:#aeaeb2">/gal fleet</span></div>
+        </div>
+        <div style="font-size:0.72rem;font-weight:700;color:#fff;margin-bottom:4px">${c.nearest_pilot.name} · ${c.nearest_pilot.city}</div>
+        <ul class="pilot-win-perks">${perks}</ul>
+        <button class="nav-btn" style="margin-top:8px" onclick="window.open('https://www.google.com/maps/search/?api=1&query=${pilotNavName}','_blank')">🧭 Navigate to Pilot</button>
+      </div>
+    </div>`;
+}
+
 // ── All stops picker ──────────────────────────────────────────────────────────
-function renderAllStops(data) {
+function renderAllStops(data, mode) {
+  mode = mode || _currentStopFilter;
   const el = document.getElementById('all-stops-list');
-  const stops = data.all_stops || [];
+  const allStops = data.all_stops || [];
+  const stops = (mode === 'optimized') ? allStops.filter(s => s.is_chosen) : allStops;
   if (!stops.length) { el.innerHTML = '<div style="color:#8e8e93;font-size:0.75rem;padding:8px 0">No stops found in this corridor.</div>'; return; }
 
   el.innerHTML = stops.map((s, i) => {
@@ -1355,23 +2034,46 @@ function renderAllStops(data) {
     if (s.visited_before) pills.push(`⭐ Been here`);
     if (s.interstate)   pills.push(`🛣️ ${s.interstate}`);
     const pillHtml = pills.map(p => `<span class="pill" style="font-size:0.6rem">${p}</span>`).join('');
+    const navAttr = s.lat && s.lon ? `onclick="navigateToStop(${s.lat},${s.lon},'${s.name}')"` : `onclick="navigateToStop(null,null,'${s.name}, ${s.city||''}')"`;
     return `
-      <div class="stop-picker-item ${isChosen ? 'chosen' : ''}" onclick="askAboutStop(${i})">
-        <div class="sp-dot ${isChosen ? 'chosen' : 'alt'}">${isChosen ? '⭐' : (i+1)}</div>
-        <div class="sp-info">
+      <div class="stop-picker-item ${isChosen ? 'chosen' : ''}">
+        <div class="sp-dot ${isChosen ? 'chosen' : 'alt'}" onclick="askAboutStop('${s.lob_id || i}')">${isChosen ? '⭐' : (i+1)}</div>
+        <div class="sp-info" onclick="askAboutStop('${s.lob_id || i}')">
           <div class="sp-name">${s.name}</div>
           <div class="sp-meta">${s.city}${s.state ? ', '+s.state : ''}${s.interstate ? ' · '+s.interstate : ''}</div>
           <div class="sp-pills">${pillHtml}</div>
         </div>
-        <div class="sp-ask">Ask AI →</div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;min-width:64px">
+          <div class="sp-ask" onclick="askAboutStop('${s.lob_id || i}')">Ask AI →</div>
+          <button class="nav-btn" style="padding:5px 8px;font-size:0.62rem;border-radius:12px;width:auto" ${navAttr}>🧭 Go</button>
+        </div>
       </div>`;
   }).join('');
 }
 
+// ── Navigation helper ─────────────────────────────────────────────────────────
+let _navStop = null;
+function navigateToStop(lat, lon, name) {
+  // Use passed coords, or fall back to current advice stop
+  const navLat = lat ?? _navStop?.lat;
+  const navLon = lon ?? _navStop?.lon;
+  const navName = name ?? (_navStop ? _navStop.name + (_navStop.city ? ', ' + _navStop.city : '') : 'Destination');
+  if (navLat && navLon) {
+    // Opens Google Maps directions in browser / maps app on mobile
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${navLat},${navLon}&travelmode=driving`, '_blank');
+  } else {
+    // Fallback: search by name
+    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(navName)}`, '_blank');
+  }
+}
+
 // ── Stop advice modal ─────────────────────────────────────────────────────────
-function askAboutStop(idx) {
-  const stop = (lastPlanData?.all_stops || [])[idx];
+function askAboutStop(idOrIdx) {
+  const all = lastPlanData?.all_stops || [];
+  // Try lob_id match first, then numeric index fallback
+  const stop = all.find(s => String(s.lob_id) === String(idOrIdx)) || all[parseInt(idOrIdx)];
   if (!stop) return;
+  _navStop = stop;
 
   document.getElementById('advice-stop-name').textContent = stop.name + (stop.city ? `, ${stop.city}` : '');
   const verdict = document.getElementById('advice-verdict');
@@ -1388,6 +2090,12 @@ function askAboutStop(idx) {
   document.getElementById('advice-stop-pills').innerHTML =
     pills.map(p => `<span class="pill">${p}</span>`).join('');
 
+  // Show reservation section for Pilot stops
+  const resSection = document.getElementById('reserve-section');
+  const resConfirm = document.getElementById('reserve-confirm');
+  resSection.style.display = 'block';
+  resConfirm.classList.remove('show');
+
   document.getElementById('advice-overlay').classList.add('open');
 
   fetch('/api/stop_advice', {
@@ -1402,10 +2110,11 @@ function askAboutStop(idx) {
   .then(d => {
     const text = d.advice || '';
     const isGood = /GOOD STOP/i.test(text);
-    const isSkip = /WORTH SKIPPING|SKIP/i.test(text);
-    verdict.className = 'advice-verdict ' + (isGood ? 'good' : isSkip ? 'skip' : 'good');
-    verdict.innerHTML = text.replace(/GOOD STOP/gi, '<strong>✅ GOOD STOP</strong>')
-                            .replace(/WORTH SKIPPING/gi, '<strong>⚠️ WORTH SKIPPING</strong>');
+    const isPlanAhead = /WORTH SKIPPING|SKIP|PLAN AHEAD/i.test(text);
+    verdict.className = 'advice-verdict ' + (isPlanAhead ? 'skip' : 'good');
+    verdict.innerHTML = text.replace(/GOOD STOP/gi, '<strong>✅ GREAT STOP</strong>')
+                            .replace(/WORTH SKIPPING/gi, '<strong>📋 PLAN AHEAD</strong>')
+                            .replace(/\bSKIP\b/gi, '<strong>📋 PLAN AHEAD</strong>');
   })
   .catch(() => {
     verdict.className = 'advice-verdict skip';
@@ -1417,6 +2126,203 @@ function closeAdvice(e) {
   if (!e || e.target === document.getElementById('advice-overlay')) {
     document.getElementById('advice-overlay').classList.remove('open');
   }
+}
+
+// ── Feature 1: Proactive Re-Route Alert ───────────────────────────────────────
+let _rerouteTimer = null;
+const _REROUTE_SCENARIOS = [
+  {
+    title: 'Parking filling up fast',
+    body: (stop) => `${stop} just hit 91% capacity. RoadIQ found an alternative Pilot with open spots 12 miles ahead — same price, shorter shower wait.`
+  },
+  {
+    title: 'Better fuel price spotted',
+    body: (stop) => `Price at ${stop} just jumped $0.09/gal. There's a Pilot 8 miles ahead at your original quote. Want to update your plan?`
+  },
+  {
+    title: 'Shower wait spiking',
+    body: (stop) => `Shower wait at ${stop} is now 45 min. A nearby Flying J has availability in under 10 min.`
+  }
+];
+
+function scheduleRerouteAlert(data) {
+  if (_rerouteTimer) clearTimeout(_rerouteTimer);
+  const banner = document.getElementById('reroute-banner');
+  banner.classList.remove('visible');
+
+  const stops = data?.stops || [];
+  if (!stops.length) return;
+
+  const firstStop = stops[0]?.name || 'your first stop';
+  const scenario = _REROUTE_SCENARIOS[Math.floor(Math.random() * _REROUTE_SCENARIOS.length)];
+
+  _rerouteTimer = setTimeout(() => {
+    document.getElementById('reroute-title').textContent = scenario.title;
+    document.getElementById('reroute-body').textContent = scenario.body(firstStop);
+    banner.classList.add('visible');
+  }, 15000);
+}
+
+function showRerouteAlternatives() {
+  dismissReroute();
+  // Scroll to stop list and briefly highlight the first stop card
+  const firstCard = document.querySelector('.stop-card');
+  if (firstCard) {
+    firstCard.style.outline = '3px solid #DC1730';
+    firstCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => { firstCard.style.outline = ''; }, 2500);
+  }
+  // Show a toast-style confirmation
+  showToast('Updated plan loaded — tap any stop to compare options');
+}
+
+function dismissReroute() {
+  document.getElementById('reroute-banner').classList.remove('visible');
+  if (_rerouteTimer) { clearTimeout(_rerouteTimer); _rerouteTimer = null; }
+}
+
+// ── Feature 2: Parking/Shower Reservation ─────────────────────────────────────
+function makeReservation(type) {
+  const code = 'PFJ-' + Math.random().toString(36).slice(2, 7).toUpperCase();
+  const isParking = type === 'parking';
+  document.getElementById('rc-icon').textContent = isParking ? '🅿️' : '🚿';
+  document.getElementById('rc-label').textContent = isParking ? 'Parking Reserved!' : 'Shower Reserved!';
+  document.getElementById('rc-code').textContent = code;
+  const confirm = document.getElementById('reserve-confirm');
+  confirm.style.display = 'flex';
+  confirm.classList.add('show');
+
+  // Trigger Celonis preference write-back for the chosen amenity
+  const prefType = type === 'parking' ? 'parking' : 'shower';
+  fetch('/api/ai', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: `I prefer to reserve ${prefType} when I stop`, driver_id: 'current' })
+  }).catch(() => {});
+}
+
+// ── Feature 3: Repeat Route Memory ────────────────────────────────────────────
+const ROUTE_MEMORY_KEY = 'roadiq_recent_routes';
+
+function saveRouteMemory(from, to) {
+  if (!from || !to) return;
+  try {
+    const routes = JSON.parse(localStorage.getItem(ROUTE_MEMORY_KEY) || '[]');
+    const key = (from + '|' + to).toLowerCase();
+    const existing = routes.find(r => r.key === key);
+    if (existing) {
+      existing.count = (existing.count || 1) + 1;
+      existing.last = Date.now();
+    } else {
+      routes.unshift({ key, from, to, count: 1, last: Date.now() });
+    }
+    // Keep only last 10 routes
+    localStorage.setItem(ROUTE_MEMORY_KEY, JSON.stringify(routes.slice(0, 10)));
+  } catch (e) {}
+}
+
+function loadRouteMemory() {
+  try {
+    return JSON.parse(localStorage.getItem(ROUTE_MEMORY_KEY) || '[]');
+  } catch (e) { return []; }
+}
+
+function checkRepeatRoute() {
+  const routes = loadRouteMemory();
+  if (!routes.length) return;
+  const top = routes[0];
+  if (top.count < 2) return; // Only show after 2+ trips on same route
+
+  const banner = document.getElementById('route-memory-banner');
+  document.getElementById('rmb-title').textContent = `Running ${top.from} → ${top.to} again?`;
+  document.getElementById('rmb-sub').textContent = `You've run this route ${top.count} times. Tap to load instantly.`;
+  banner.classList.add('visible');
+  banner._repeatRoute = top;
+}
+
+function loadRepeatRoute() {
+  const banner = document.getElementById('route-memory-banner');
+  const route = banner._repeatRoute;
+  if (!route) return;
+  banner.classList.remove('visible');
+  document.getElementById('from-input').value = route.from;
+  document.getElementById('to-input').value = route.to;
+  buildTrip();
+}
+
+// ── Toast helper ──────────────────────────────────────────────────────────────
+function showToast(msg) {
+  let t = document.getElementById('roadiq-toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'roadiq-toast';
+    t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#1c1c1e;color:#fff;padding:10px 18px;border-radius:20px;font-size:0.82rem;font-weight:600;z-index:9999;opacity:0;transition:opacity 0.3s;pointer-events:none;max-width:320px;text-align:center';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  setTimeout(() => { t.style.opacity = '0'; }, 3000);
+}
+
+// ── Return load opportunities ──────────────────────────────────────────────────
+function loadReturnOpps() {
+  fetch('/api/return_loads')
+    .then(r => r.json())
+    .then(data => {
+      const section = document.getElementById('load-opps-section');
+      const list    = document.getElementById('load-opp-list');
+      const chip    = document.getElementById('opp-cost-chip');
+      section.style.display = 'block';
+
+      // Opportunity cost chip
+      const closeMin = data.best_window_closes_min;
+      const closeHr  = Math.floor(closeMin / 60);
+      const closeMn  = closeMin % 60;
+      const closeStr = closeHr > 0 ? `${closeHr}h ${closeMn}m` : `${closeMn}m`;
+      chip.textContent = `Best window closes in ${closeStr}`;
+
+      // Render cards
+      list.innerHTML = data.loads.map((load, i) => {
+        const urgencyPill = load.urgency === 'high'
+          ? `<span class="load-opp-pill urgent">⏰ ${Math.floor(load.window_closes_min/60)}h window</span>`
+          : `<span class="load-opp-pill">${Math.floor(load.window_closes_min/60)}h window</span>`;
+        return `
+          <div class="load-opp-card ${i === 0 ? 'best' : ''}">
+            <div class="load-opp-top">
+              <div>
+                <div class="load-opp-route">${load.origin.split(',')[0]} → ${load.destination.split(',')[0]}</div>
+                <div style="font-size:0.7rem;color:#636366;margin-top:2px">${load.cargo} · ${load.miles} mi</div>
+              </div>
+              <div class="load-opp-net">
+                <div class="load-opp-net-val">$${load.net_earnings.toLocaleString()}</div>
+                <div class="load-opp-net-label">net after Pilot fuel</div>
+              </div>
+            </div>
+            <div class="load-opp-meta">
+              <span class="load-opp-pill">$${load.gross_rate.toLocaleString()} gross</span>
+              <span class="load-opp-pill">⛽ -$${load.pilot_fuel_cost} fuel</span>
+              <span class="load-opp-pill">$${load.net_cpm}/mi net</span>
+              ${urgencyPill}
+              <span class="load-opp-pill">${load.loads_competing} drivers competing</span>
+            </div>
+            <button class="load-opp-claim" onclick="claimLoad('${load.id}', '${load.origin.split(',')[0]}', '${load.destination.split(',')[0]}', ${load.net_earnings})">
+              Claim This Load →
+            </button>
+          </div>`;
+      }).join('');
+    })
+    .catch(() => {});
+}
+
+function claimLoad(id, origin, dest, net) {
+  document.getElementById('load-opp-list').style.opacity = '0.4';
+  document.getElementById('load-opp-list').style.pointerEvents = 'none';
+  const confirm = document.getElementById('load-claimed-confirm');
+  document.getElementById('load-claimed-detail').textContent =
+    `${origin} → ${dest} · Est. $${net.toLocaleString()} net · Dispatcher notified`;
+  confirm.style.display = 'flex';
+  confirm.classList.add('show');
+  showToast('Load claimed — dispatcher has been notified');
 }
 
 function itinStop(type, icon, name, city, meta, pills, showLine = true) {
@@ -1444,19 +2350,46 @@ fetch('/api/driver')
   .then(d => {
     const mi = d.fuel_remaining_miles;
     const pct = Math.min(Math.round(mi / 6), 100);
-    const color = mi < 150 ? '#DC1730' : mi < 300 ? '#ff9500' : '#30d158';
+    const color = mi < 150 ? '#DC1730' : mi < 300 ? '#ff9500' : '#1c1c1e';
     document.getElementById('fuel-miles').textContent = mi + ' mi remaining';
     document.getElementById('fuel-miles').style.color = color;
     document.getElementById('fuel-fill').style.width = pct + '%';
     document.getElementById('fuel-fill').style.background = color;
-    document.getElementById('loyalty-badge').textContent = '🏆 ' + d.loyalty_tier;
+    // Show program name from Databricks; badge shows program
+    const tier = (d.loyalty_tier || 'MyRewards').replace(/platinum/i, 'Elite');
+    document.getElementById('loyalty-badge').textContent = '🏆 ' + tier;
+    document.getElementById('loyalty-status-title').textContent = tier + ' Member';
     document.getElementById('header-greeting').textContent = 'Hey, ' + d.name.split(' ')[0] + ' 👋';
     document.getElementById('alert-sub').textContent =
       'Based on your route to ' + d.destination + ' — Pilot Knoxville #198 recommended';
+
+    // Elite progress — estimate monthly gallons from lifetime total
+    // Databricks total_gallons is lifetime; derive monthly by dividing by active months
+    const lifetimeGal = d.total_gallons || 0;
+    const issueDate = d.loyalty_issue_date ? new Date(d.loyalty_issue_date) : new Date(Date.now() - 365*24*60*60*1000);
+    const monthsActive = Math.max(1, Math.round((Date.now() - issueDate) / (1000*60*60*24*30)));
+    const monthlyGal = Math.round(lifetimeGal / monthsActive);
+    const ELITE_THRESHOLD = 1200;
+    const galLeft = Math.max(0, ELITE_THRESHOLD - monthlyGal);
+    const pctElite = Math.min(100, Math.round((monthlyGal / ELITE_THRESHOLD) * 100));
+    document.getElementById('elite-fill').style.width = pctElite + '%';
+    document.getElementById('elite-gal-done').textContent = monthlyGal.toLocaleString() + ' gal this month';
+    if (galLeft > 0) {
+      document.getElementById('elite-gal-left').textContent = galLeft.toLocaleString() + ' gal to Elite';
+      document.getElementById('loyalty-status-sub').textContent = galLeft.toLocaleString() + ' gal away from Elite';
+    } else {
+      document.getElementById('elite-gal-left').textContent = '✅ Elite achieved!';
+      document.getElementById('elite-gal-left').style.color = '#1c1c1e';
+      document.getElementById('loyalty-status-sub').textContent = '2× points on every fill-up';
+    }
+    if (lifetimeGal === 0) document.getElementById('elite-progress-card').style.display = 'none';
   }).catch(() => {});
 
 // Load maintenance alert for home screen
 loadHomeMaintenance();
+
+// Check for repeat route on load
+checkRepeatRoute();
 </script>
 </body>
 </html>

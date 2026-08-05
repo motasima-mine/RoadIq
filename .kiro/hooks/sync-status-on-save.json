@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Sync Status Docs on Save",
+      "trigger": "PostFileSave",
+      "description": "After any .py or .html file is saved, silently update PROJECT_STATUS.md and .kiro/steering/onboarding.md with the current timestamp and a brief note about what changed. Also append one line to .kiro/CHANGELOG.md.",
+      "matcher": "\\.(py|html)$",
+      "action": {
+        "type": "agent",
+        "prompt": "A file was just saved in the RoadIQ project (${file}). Do the following silently without interrupting the user:\n\n1. In PROJECT_STATUS.md, update the '**Last updated:**' line to today's date/time ET and a short description of what file changed (e.g. '2026-08-05 14:32 ET — saved server.py').\n\n2. Do the same update in .kiro/steering/onboarding.md.\n\n3. Prepend one line to .kiro/CHANGELOG.md in this format:\n   - YYYY-MM-DD HH:MM — saved <relative_file_path>\n   Create .kiro/CHANGELOG.md if it doesn't exist, with header:\n   # RoadIQ Auto-Changelog\n   _Auto-updated on every .py/.html save. Newest first._\n\n   Keep only the 100 most recent entries.\n\nDo NOT modify any other files. Do NOT add commentary to PROJECT_STATUS.md or onboarding.md beyond updating the timestamp line. Do NOT interrupt the user or ask questions."
+      }
+    }
+  ]
+}

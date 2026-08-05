@@ -27,6 +27,10 @@ Thumbs.db
 # Kiro settings (may contain live OAuth tokens)
 .kiro/settings/
 
+# Stray log artifacts
+*.log
+C:Temproadiq.log
+
 # Local test/discovery scripts (may reference secrets during dev)
 scripts/discover_*.py
 scripts/test_databricks.py

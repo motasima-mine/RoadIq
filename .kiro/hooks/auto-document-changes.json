@@ -5,7 +5,7 @@
       "name": "Auto-Document Changes",
       "trigger": "PostFileSave",
       "description": "When a file is saved in the roadiq project, remind the agent to update PROJECT_STATUS.md with what changed",
-      "matcher": "\\\\.(py|html|json|txt|toml|yml)$",
+      "matcher": "\\.(py|html|json|txt|toml|yml)$",
       "action": {
         "type": "agent",
         "prompt": "A file in the RoadIQ project was just saved. After completing the current task, update PROJECT_STATUS.md to reflect what changed. Keep the document current with: which files exist, what they do, what's working, and what's the current architecture (server.py Flask backend + static/index.html frontend + Bedrock AI + Celonis locations + Databricks data). Do NOT interrupt the user's current work — just update the doc silently at the end."

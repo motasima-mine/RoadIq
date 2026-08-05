@@ -9,12 +9,7 @@
     "shower_wait_min": 8,
     "food_available": "Subway, Denny's",
     "diesel_price_advantage": true,
-    "fleet_fuel_agreement": true,
-    "incoming_drivers_4hr": 4,
-    "expected_gallons_4hr": 480,
-    "parking_demand": "MODERATE",
-    "shower_requests_4hr": 3,
-    "food_orders_expected_4hr": 6
+    "fleet_fuel_agreement": true
   },
   {
     "id": "columbus_245",
@@ -26,12 +21,7 @@
     "shower_wait_min": 20,
     "food_available": "Subway, Burger King",
     "diesel_price_advantage": false,
-    "fleet_fuel_agreement": true,
-    "incoming_drivers_4hr": 6,
-    "expected_gallons_4hr": 620,
-    "parking_demand": "HIGH",
-    "shower_requests_4hr": 5,
-    "food_orders_expected_4hr": 9
+    "fleet_fuel_agreement": true
   },
   {
     "id": "dayton_310",
@@ -43,12 +33,7 @@
     "shower_wait_min": 5,
     "food_available": "Arby's, McDonald's",
     "diesel_price_advantage": true,
-    "fleet_fuel_agreement": false,
-    "incoming_drivers_4hr": 2,
-    "expected_gallons_4hr": 210,
-    "parking_demand": "LOW",
-    "shower_requests_4hr": 1,
-    "food_orders_expected_4hr": 3
+    "fleet_fuel_agreement": false
   },
   {
     "id": "gaffney_221",
@@ -60,11 +45,138 @@
     "shower_wait_min": 35,
     "food_available": "McDonald's, Subway",
     "diesel_price_advantage": false,
-    "fleet_fuel_agreement": true,
-    "incoming_drivers_4hr": 7,
-    "expected_gallons_4hr": 750,
-    "parking_demand": "CRITICAL",
-    "shower_requests_4hr": 6,
-    "food_orders_expected_4hr": 11
+    "fleet_fuel_agreement": true
+  },
+  {
+    "id": "memphis_412",
+    "name": "Pilot Memphis #412",
+    "city": "Memphis, TN",
+    "lat": 35.1495,
+    "lon": -90.0490,
+    "parking_forecast_pct": 62,
+    "shower_wait_min": 12,
+    "food_available": "Subway, Wendy's",
+    "diesel_price_advantage": true,
+    "fleet_fuel_agreement": true
+  },
+  {
+    "id": "little_rock_287",
+    "name": "Pilot Little Rock #287",
+    "city": "Little Rock, AR",
+    "lat": 34.7465,
+    "lon": -92.2896,
+    "parking_forecast_pct": 71,
+    "shower_wait_min": 9,
+    "food_available": "Arby's, Pizza Hut",
+    "diesel_price_advantage": true,
+    "fleet_fuel_agreement": true
+  },
+  {
+    "id": "texarkana_155",
+    "name": "Pilot Texarkana #155",
+    "city": "Texarkana, TX",
+    "lat": 33.4251,
+    "lon": -94.0477,
+    "parking_forecast_pct": 55,
+    "shower_wait_min": 15,
+    "food_available": "Subway, McDonald's",
+    "diesel_price_advantage": false,
+    "fleet_fuel_agreement": true
+  },
+  {
+    "id": "dallas_340",
+    "name": "Pilot Dallas #340",
+    "city": "Dallas, TX",
+    "lat": 32.7767,
+    "lon": -96.7970,
+    "parking_forecast_pct": 68,
+    "shower_wait_min": 11,
+    "food_available": "Denny's, Subway",
+    "diesel_price_advantage": true,
+    "fleet_fuel_agreement": true
+  },
+  {
+    "id": "oklahoma_city_219",
+    "name": "Pilot Oklahoma City #219",
+    "city": "Oklahoma City, OK",
+    "lat": 35.4676,
+    "lon": -97.5164,
+    "parking_forecast_pct": 80,
+    "shower_wait_min": 7,
+    "food_available": "Burger King, Subway",
+    "diesel_price_advantage": true,
+    "fleet_fuel_agreement": true
+  },
+  {
+    "id": "joplin_178",
+    "name": "Pilot Joplin #178",
+    "city": "Joplin, MO",
+    "lat": 37.0842,
+    "lon": -94.5133,
+    "parking_forecast_pct": 58,
+    "shower_wait_min": 18,
+    "food_available": "McDonald's, Subway",
+    "diesel_price_advantage": false,
+    "fleet_fuel_agreement": true
+  },
+  {
+    "id": "st_louis_302",
+    "name": "Pilot St. Louis #302",
+    "city": "St. Louis, MO",
+    "lat": 38.6270,
+    "lon": -90.1994,
+    "parking_forecast_pct": 73,
+    "shower_wait_min": 14,
+    "food_available": "Subway, Hardee's",
+    "diesel_price_advantage": true,
+    "fleet_fuel_agreement": true
+  },
+  {
+    "id": "nashville_south_444",
+    "name": "Pilot Nashville South #444",
+    "city": "Nashville, TN",
+    "lat": 36.1627,
+    "lon": -86.7816,
+    "parking_forecast_pct": 66,
+    "shower_wait_min": 10,
+    "food_available": "Subway, Starbucks",
+    "diesel_price_advantage": true,
+    "fleet_fuel_agreement": true
+  },
+  {
+    "id": "atlanta_north_551",
+    "name": "Pilot Atlanta North #551",
+    "city": "Atlanta, GA",
+    "lat": 33.7490,
+    "lon": -84.3880,
+    "parking_forecast_pct": 85,
+    "shower_wait_min": 22,
+    "food_available": "Chick-fil-A, Subway",
+    "diesel_price_advantage": true,
+    "fleet_fuel_agreement": true
+  },
+  {
+    "id": "chicago_west_188",
+    "name": "Pilot Chicago West #188",
+    "city": "Chicago, IL",
+    "lat": 41.8781,
+    "lon": -87.9298,
+    "parking_forecast_pct": 48,
+    "shower_wait_min": 28,
+    "food_available": "McDonald's, Subway",
+    "diesel_price_advantage": false,
+    "fleet_fuel_agreement": true
+  },
+  {
+    "id": "indianapolis_267",
+    "name": "Pilot Indianapolis #267",
+    "city": "Indianapolis, IN",
+    "lat": 39.7684,
+    "lon": -86.1581,
+    "parking_forecast_pct": 61,
+    "shower_wait_min": 16,
+    "food_available": "Arby's, Burger King",
+    "diesel_price_advantage": true,
+    "fleet_fuel_agreement": true
   }
 ]
