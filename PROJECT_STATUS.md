@@ -1,6 +1,6 @@
 # RoadIQ — Project Status
 
-**Last updated:** 2026-08-05 ET (AI engine gap features: re-route alert, reservations, route memory, Celonis expansion, return load opportunities)
+**Last updated:** 2026-08-05 ET (saved scripts/test_celonis_dim_loyalty_id_filter.py — confirmed dim_loyalty_id still doesn't filter load_data_driver_info)
 
 ## All Features Complete
 
@@ -26,7 +26,8 @@
 | Load assignment board | ✅ | Fleet tab load board: 5 loads, driver dropdown, instant assign with green ✅ tag. In-memory state, driver name resolved from fleet cache |
 | Pilot vs competitor fleet savings | ✅ | Fleet tab banner: Pilot $/gal vs national avg diesel → weekly/annual fleet savings estimate. Real price from Databricks `fct_fuel_supply_price` |
 | Push for Points Elite progress | ✅ | Home tab loyalty card shows gold progress bar toward 1,200 gal/mo Elite threshold. Real gallons from Databricks, monthly estimate derived from lifetime total ÷ account age. "Platinum" removed everywhere — program is MyRewards, tier is Elite. |
-| PFJ 360 data discovery | 🔍 Discovered, not integrated | ~172 tables found in `dev.location`/`dev.common` catalogs with real parking space counts, real amenity lists, and store hours — richer than current `innovate` catalog data. See onboarding.md for table list. Next step: wire into `databricks_client.py` |
+| PFJ 360 food offerings | ✅ Integrated 2026-08-05 | `databricks_client.get_pfj360_food_offerings(lob_ids)` queries `dev.location.pfj360_offering` for real restaurant/brand names (Subway POS, Pilot Coffee, DoorDash, GrubHub, Hand Roped Pizza, etc.) per stop. Join key empirically confirmed: `DIM_LINE_OF_BUSINESS_ID` == `pfj360_offering.LocationID` (85% match rate on sample; `LOCATION_ID`/`DIM_STORE_ID` both only ~5%, i.e. NOT the real key despite the more intuitive names). Rest of PFJ 360 (141K-row real parking inventory, store hours) still not wired in — only the food-offering piece is done. |
+| Chat tab grounded with real stop + food data | ✅ Integrated 2026-08-05 | Root cause of "chat can't answer food questions": `/api/ai` mode=chat was passing ZERO stop/location data to Bedrock — not a Celonis/PFJ360 capability gap, a missing-plumbing bug. Fixed via `_build_chat_stops_context()`: pulls real corridor stops (Databricks) + food offerings (PFJ 360) + parking/shower, caches 5 min, injects into the chat prompt alongside learned preferences. Verified: chat now correctly answers "what food is at my stop" with real brand names, and correctly says "no Subway on your route" (honest, not hallucinated) when asked about something not present. See `scripts/test_chat_food_grounding.py`. |
 | Celonis driver preference write-back | ✅ | Chat messages are passed through a Bedrock extraction prompt to detect food/shower preferences; detected preferences are written to Celonis via `trigger_action_flow_Update_Driver_Preferences` AND cached in-process (`_driver_preferences_cache`), so `/api/plan`'s AI prompt reflects them on the very next request. Verified end-to-end with `scripts/test_preference_loop.py` — write confirmed via `celonis_synced: true`. |
 | 3-way stop filter + competitor view | ✅ | Plan Trip tab: ⭐ Optimized (AI-chosen stops only) / 🗺️ All Stops (every Pilot stop on route) / 🆚 Competitors (competitor prices + why Pilot wins at nearest location). Competitor section lazy-loads from `/api/competitors`, shows savings banner ($0.18/gal avg), per-competitor card with red "missing vs Pilot" tags and green "Pilot wins" card with specific perks. Filter resets to Optimized on each new trip. |
 | Brand color audit | ✅ | All off-brand greens (#30d158, #00994a, etc.) replaced with brand-only colors: #DC1730 red, #1c1c1e black, #FFFFFF white. Verified across all CSS, inline styles, and JS. |
@@ -118,11 +119,15 @@ See `TECH_STACK.md` for complete breakdown of every technology, version, and why
 7. `innovate.price.fct_fuel_supply_price` — diesel prices
 8. `innovate.loyalty.fct_guest_mobile_offers` — personalized offers
 
-## PFJ 360 Tables (`dev` catalog — discovered, NOT yet wired in)
+## PFJ 360 Tables (`dev` catalog)
 
-See `.kiro/steering/onboarding.md` "PFJ 360 data" section for the full table list and details.
-Highlights: `dev.location.pfj360ods_parking_parking` (real parking space inventory, 141K rows),
-`dev.location.pfj360_offering` (real amenity list per location, 49K rows).
+**`dev.location.pfj360_offering` — INTEGRATED 2026-08-05** via `databricks_client.get_pfj360_food_offerings()`.
+Real restaurant/amenity brand names per stop, joined on `DIM_LINE_OF_BUSINESS_ID` == `LocationID`.
+Feeds both `/api/ai` chat grounding and is available for `/api/plan` to use.
+
+**Still NOT wired in:** `dev.location.pfj360ods_parking_parking` (real parking space inventory, 141K
+rows — would replace the forecast-based parking % `/api/plan` currently uses). See
+`.kiro/steering/onboarding.md` "PFJ 360 data" section for the full table list.
 
 ## Celonis MCP (working, separate from Databricks)
 

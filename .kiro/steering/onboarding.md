@@ -7,7 +7,7 @@ Claude, Kiro, Cursor, or a human — read this before making changes.
 
 ## Current State
 
-**Last updated:** 2026-08-05 ET (AI engine gap features: re-route alert, reservations, route memory, Celonis expansion, return load opportunities)
+**Last updated:** 2026-08-05 ET (saved scripts/test_celonis_dim_loyalty_id_filter.py — confirmed dim_loyalty_id still doesn't filter load_data_driver_info)
 
 ### Active server: `server.py` (Flask)
 - NOT app.py (Streamlit is legacy/backup)
@@ -38,24 +38,29 @@ Claude, Kiro, Cursor, or a human — read this before making changes.
 - Note: Sandbox has synthetic data (lat/lons don't match real US geography)
 - Corridor bounding box query returns 0 hits → falls back to all OPEN stops globally
 
-### PFJ 360 data — discovered, NOT yet integrated (2026-08-05)
+### PFJ 360 data (2026-08-05: food offerings integrated, rest still not)
 Beyond the `innovate` catalog, the `dev` catalog contains ~172 tables under `dev.location` and
-`dev.common` matching "pfj360"/"resource"/"amenity" — this is a much richer, more granular data
-source than what `/api/plan` currently uses. Discovered via `scripts/search_pfj360.py`, inspected
-via `scripts/inspect_pfj360_tables.py` and `scripts/decode_pfj360_references.py`. Key tables:
+`dev.common` matching "pfj360"/"resource"/"amenity" — richer, more granular than `innovate`.
+Discovered via `scripts/search_pfj360.py`, inspected via `scripts/inspect_pfj360_tables.py`.
 
-| Table | Rows | What it gives (vs. current `innovate` catalog data) |
-|-------|------|------------------------------------------------------|
-| `dev.location.pfj360ods_parking_parking` | 141,461 | Real per-space parking inventory by type (Truck/Gas/Diesel/RV/Bobtail) and Active/Inactive status — replaces the forecast-based `fct_parking_demand_forecast` estimate with actual counts |
-| `dev.location.pfj360_offering` + `pfj360_offeringattribute` | 49,483 + 24,916 | Real amenity list per location: Showers (Active/Total Qty), ATM, CAT Scale, Air Vac, Mobile Fueling, Wifi, Pilot Coffee, DoorDash/GrubHub/Uber Eats, Lottery, Check Cashing |
-| `dev.location.gpss_pfj360_location` | 12,785 | Master location table — full address, real lat/lon, store brand, 24hr flag |
-| `dev.location.pfj360_storehours` | 19,328 | Real open/close hours by day of week |
-| `dev.location.corpdata_location_amenity` | 30,297 | Location→amenity ID mapping (needs a reference table to decode `AMENITY_ID`, not yet found) |
-| `dev.location.pfj360ods_location_truckstop` | 9,626 | Truck-stop master data — brand, diesel brand, status |
+| Table | Rows | Status |
+|-------|------|--------|
+| `dev.location.pfj360_offering` | 49,483 | **✅ INTEGRATED** — real restaurant/brand names (Subway POS, Pilot Coffee, DoorDash, GrubHub, Hand Roped Pizza, etc.) via `databricks_client.get_pfj360_food_offerings(lob_ids)` |
+| `dev.location.pfj360ods_parking_parking` | 141,461 | Not integrated. Real per-space parking inventory by type (Truck/Gas/Diesel/RV/Bobtail), Active/Inactive status — would replace the forecast-based `fct_parking_demand_forecast` estimate with actual counts |
+| `dev.location.gpss_pfj360_location` | 12,785 | Not integrated. Master location table — full address, real lat/lon, store brand, 24hr flag |
+| `dev.location.pfj360_storehours` | 19,328 | Not integrated. Real open/close hours by day of week |
+| `dev.location.corpdata_location_amenity` | 30,297 | Not integrated. Location→amenity ID mapping (needs a reference table to decode `AMENITY_ID`, not yet found) |
+| `dev.location.pfj360ods_location_truckstop` | 9,626 | Not integrated. Truck-stop master data — brand, diesel brand, status |
 
-**Not yet wired into `databricks_client.py` or `/api/plan`.** This is the next natural upgrade:
-replace forecast-based parking % and boolean shower/amenity flags with real PFJ 360 counts. Join
-key is `LocationID` across most of these tables.
+**Join key (empirically confirmed 2026-08-05, see `get_pfj360_food_offerings()` docstring in
+`databricks_client.py`):** `innovate.location.dim_line_of_business_offering.DIM_LINE_OF_BUSINESS_ID`
+== `dev.location.pfj360_offering.LocationID`. Tested on a 100-row sample: 85% match rate.
+IMPORTANT — despite the more intuitive-sounding names, `LOCATION_ID` and `DIM_STORE_ID` on the
+`innovate` table are NOT the right key (~5% match each, consistent with coincidental overlap in a
+large ID space). Always verify empirically before trusting a column name across these two catalogs.
+
+**Next upgrade opportunity:** wire `pfj360ods_parking_parking` in the same way to replace
+`/api/plan`'s forecast-based parking % with real space counts.
 
 ### Map Routing
 - OSRM (free, no API key): router.project-osrm.org
@@ -145,7 +150,7 @@ Run `scripts/discover_celonis_tools.py` to re-list live. 3 tools currently expos
 | GET | `/api/stop` | — | Recommended stop |
 | GET | `/api/route` | — | OSRM route coords + stop pins |
 | POST | `/api/plan` | `{from, to, prefs, hos_hours_driven}` | `{stops, all_stops, route_coords, from_coords, to_coords, itinerary, savings_detail, hos, offers}` |
-| POST | `/api/ai` | `{mode: "plan"\|"chat", message}` | `{text, source}` + optional `preference_update: {food_preference, shower_preference, celonis_synced}` when mode=chat and a preference was detected |
+| POST | `/api/ai` | `{mode: "plan"\|"chat", message}` | `{text, source}` + optional `preference_update: {food_preference, shower_preference, celonis_synced}` when mode=chat and a preference was detected. **mode=chat is now grounded** — see "Chat tab grounding fix" section below. |
 | GET | `/api/fleet` | — | 15 drivers with loyalty tier, fuel_pct, fuel_miles, route |
 | POST | `/api/stop_advice` | `{stop, from, to, prefs, hos_hours_driven}` | `{advice}` — GOOD STOP or WORTH SKIPPING verdict |
 | GET | `/api/maintenance` | `?driver_id=N` (optional) | Maintenance data: DEF%, tire PSI%, oil life%, miles to service, alerts array |
@@ -238,6 +243,40 @@ in the request body), or `"default"` (neither available, defaults to 0h driven).
 - **Formula:** `per_gal_savings = national_avg - pilot_price`; `fleet_weekly = per_gal_savings × 180 gal/driver/week × 15 drivers`; `fleet_annual = fleet_weekly × 52`
 - **At current prices (~$3.448 Pilot vs $3.689 national):** $0.241/gal → $650.70/week → $33,836/year
 - **Frontend:** dark card at top of Fleet tab, green `$XXX.X` headline, 4 sub-stats row (Pilot $/gal, Natl Avg $/gal, Savings/gal, Annual Est.)
+
+### Chat tab grounding fix (2026-08-05)
+**Root cause found:** the user's report of "chat can't answer food questions" was NOT a Celonis/PFJ360
+data-capability gap. Checking the actual code showed `/api/ai` mode="chat" built its Bedrock prompt
+with ZERO location/stop/food data injected — unlike `/api/plan`, which was already well-grounded.
+The chat model was answering from pure LLM knowledge with no facts to reason over, so it either
+refused or, worse, could hallucinate.
+
+**Fix — `server.py` `_build_chat_stops_context()`:**
+- New helper, defined right before `ask_ai()`, called from the mode != "plan" branch of `/api/ai`
+- Pulls real corridor stops via `get_stops_in_corridor()`, food via
+  `databricks_client.get_pfj360_food_offerings()`, parking via `get_parking_availability()`,
+  shower via `get_shower_wait()`
+- Result cached 5 minutes in `_chat_stops_cache` dict (same in-process cache pattern as
+  `_driver_preferences_cache`) to avoid a Databricks round-trip on every chat message
+- Falls back to the local `data/locations.json` stops if Databricks is unreachable
+- Chat prompt now includes this stop/food/parking/shower context plus `pref_info` (learned
+  preferences from `_driver_preferences_cache`), with an explicit instruction to use ONLY the
+  stop data provided — never invent locations, prices, or food options not listed
+
+**Verified with `scripts/test_chat_food_grounding.py`** (3 real questions):
+- "What food options are available at my next stop?" → correctly lists real PFJ360 items
+- "Is there a Subway on my route?" → correctly says no Subway on the route (honest, not
+  hallucinated) and suggests a real alternative from the actual stop data
+- "Where can I get coffee along the way?" → correctly names Pilot Coffee / Cold Brew Coffee
+
+**Known side-effect (not fixed, flagged for later):** `_extract_and_save_preferences()` can
+false-positive on questions phrased as preferences — asking "Is there a Subway on my route?" was
+extracted as `food_preference: "Subway"` even though the driver was just asking, not stating a
+preference. Not addressed this session; revisit if it causes visible bad recommendations.
+
+**Latency note:** chat now does 2 Databricks calls (stops + food) + 2 sequential Bedrock calls
+(chat reply + preference extraction) per message, roughly 11-20s round trip. Not yet optimized;
+flag if it becomes a UX complaint.
 
 ### Celonis driver preference write-back (integrated 2026-08-05)
 Makes the Chat tab stateful: preferences mentioned in conversation now persist and influence
@@ -332,7 +371,7 @@ Five features closing the gap between "stop recommendation tool" and "AI-powered
 ### What is NOT yet built (next opportunities)
 - **Weigh station locations** — static JSON from FHWA (discussed, not built). Would show as pins on SVG map or listed in itinerary for the corridor.
 - **Fuel price trend sparkline** — "is price going up tomorrow?" prediction. Would require historical `fct_fuel_supply_price` rows by date, simple delta or ML model.
-- **PFJ 360 integration** — replace `innovate` catalog parking/shower/amenity data with richer `dev` catalog PFJ 360 tables (see PFJ 360 section above). Join key: `LocationID`.
+- **PFJ 360 integration (partial)** — food offerings (`pfj360_offering`) are integrated (2026-08-05); parking, store hours, and amenity tables are still not. Would replace `innovate` catalog's forecast-based parking/shower data with richer `dev` catalog PFJ 360 counts (see PFJ 360 section above). Join key: `LocationID`.
 - **Persistent load assignments** — currently in-memory. Production would need a DB table or Celonis action flow.
 - **Frontend UI for preference updates** — `/api/ai` chat now returns `preference_update` when detected, but `static/index.html`'s chat handler doesn't yet surface this to the driver (e.g. a small toast "Got it — I'll remember you prefer Wendy's"). Currently silent/backend-only.
 - **Re-test Celonis `dim_loyalty_id` filtering** — schema now accepts it as a required field; unconfirmed whether it actually filters server-side (see Celonis bug section).
@@ -367,6 +406,8 @@ Five features closing the gap between "stop recommendation tool" and "AI-powered
 - `scripts/refresh_celonis_token.ps1` — Manually refresh a Celonis OAuth token for debugging
 - `scripts/test_update_preferences.py` — Direct test of `celonis_update_driver_preferences()` write
 - `scripts/test_preference_loop.py` — Full end-to-end test: chat → extraction → Celonis write → `/api/plan` prompt
+- `scripts/test_pfj360_food.py` — Direct test of `get_pfj360_food_offerings()` against real lob_ids
+- `scripts/test_chat_food_grounding.py` — End-to-end test of the chat grounding fix (3 real food questions)
 - `.kiro/steering/onboarding.md` — THIS FILE
 - `PROJECT_STATUS.md` — Current build status
 - `.kiro/CHANGELOG.md` — Auto-generated newest-first log of every .py/.html save. **Read this first** when resuming a session to see what changed without opening every file.

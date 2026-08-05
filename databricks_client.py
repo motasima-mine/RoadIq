@@ -436,6 +436,76 @@ def get_fuel_prices():
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# 9. PFJ 360 FOOD / RESTAURANT OFFERINGS
+# ═══════════════════════════════════════════════════════════════════════════════
+# Source: dev.location.pfj360_offering (49,483 rows) — a richer, store-ops
+# catalog than innovate.location.dim_line_of_business_offering, which has
+# NO restaurant/brand column at all. pfj360_offering has real per-location
+# offering names like "Subway POS", "Pilot Coffee", "DoorDash", "GrubHub".
+#
+# Join key confirmed empirically (see scripts/check_pfj360_join_key.py):
+#   innovate.location.dim_line_of_business_offering.DIM_LINE_OF_BUSINESS_ID
+#     == dev.location.pfj360_offering.LocationID   (85% match rate on a
+#        100-row sample; LOCATION_ID and DIM_STORE_ID both matched only ~5%,
+#        consistent with coincidental overlap in a large ID space — NOT the
+#        real key, despite the more intuitive-sounding names.)
+
+# Keywords used to identify food/dining-related offerings among the ~400+
+# distinct offering names in pfj360_offering (most are non-food: parking,
+# ATMs, square footage, construction status, etc.)
+_FOOD_OFFERING_KEYWORDS = [
+    "food", "subway", "restaurant", "sandwich", "coffee", "pizza",
+    "dining", "qsr", "deli", "grill", "doordash", "grubhub", "ubereats",
+    "salad", "burrito",
+]
+
+
+def get_pfj360_food_offerings(lob_ids):
+    """
+    Query dev.location.pfj360_offering for real restaurant/food-brand
+    offerings at the given locations (keyed by DIM_LINE_OF_BUSINESS_ID,
+    which maps to pfj360_offering.LocationID — see module comment above).
+
+    Args:
+        lob_ids: list of DIM_LINE_OF_BUSINESS_ID values (same ids used
+            throughout databricks_client.py / server.py for Pilot stops)
+
+    Returns:
+        dict mapping lob_id -> list of offering name strings, e.g.
+            {50: ["Subway POS", "Pilot Coffee", "DoorDash"]}
+        Only includes locations with at least one food-related offering.
+        Returns {} on failure or if lob_ids is empty.
+    """
+    if not lob_ids:
+        return {}
+    id_list = ",".join(str(int(x)) for x in lob_ids)
+    keyword_clause = " OR ".join(
+        f"lower(offeringreferenceiddesc) LIKE '%{kw}%'"
+        for kw in _FOOD_OFFERING_KEYWORDS
+    )
+    sql_text = f"""
+        SELECT LocationID, offeringreferenceiddesc
+        FROM dev.location.pfj360_offering
+        WHERE LocationID IN ({id_list})
+          AND ({keyword_clause})
+    """
+    rows = _query(sql_text)
+    if not rows:
+        return {}
+
+    result = {}
+    for r in rows:
+        lob_id = r["LocationID"]
+        name = r["offeringreferenceiddesc"]
+        if not name:
+            continue
+        result.setdefault(lob_id, [])
+        if name not in result[lob_id]:
+            result[lob_id].append(name)
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # 8. MOBILE OFFERS FOR DRIVER
 # ═══════════════════════════════════════════════════════════════════════════════
 

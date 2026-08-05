@@ -54,6 +54,82 @@ def _bedrock():
         ),
     )
 
+_chat_stops_cache = {"text": None, "ts": 0}
+
+
+def _build_chat_stops_context():
+    """
+    Build a text block describing real Pilot/FJ stops on the demo driver's
+    route, including real food offerings from PFJ 360 — for grounding the
+    Chat tab (mode="chat" in /api/ai). Uses the same data sources /api/plan
+    uses (Databricks corridor stops + PFJ 360 food offerings), so chat can
+    answer food/amenity questions instead of guessing with zero context.
+
+    Cached for 5 minutes since this doesn't change per-message.
+    """
+    now = __import__("time").time()
+    if _chat_stops_cache["text"] and now - _chat_stops_cache["ts"] < 300:
+        return _chat_stops_cache["text"]
+
+    lines = []
+    try:
+        from databricks_client import (
+            get_stops_in_corridor, get_pfj360_food_offerings,
+            get_parking_availability, get_shower_wait,
+        )
+        # Nashville -> Atlanta corridor (demo driver's route)
+        stops = get_stops_in_corridor(33.0, 37.0, -87.0, -83.0, driver_id=DEMO_DRIVER["id"])
+        if not stops:
+            stops = get_stops_in_corridor(-90, 90, -180, 180, driver_id=DEMO_DRIVER["id"])
+
+        if stops:
+            lob_ids = [s["lob_id"] for s in stops if s.get("lob_id") is not None]
+            food_map = get_pfj360_food_offerings(lob_ids) or {}
+            parking_map = get_parking_availability(lob_ids) or {}
+            shower_map = get_shower_wait(lob_ids) or {}
+
+            for s in stops[:8]:  # cap to keep prompt small
+                lob_id = s.get("lob_id")
+                food = food_map.get(lob_id)
+                park = parking_map.get(lob_id, {}).get("parking_pct_available")
+                shower = shower_map.get(lob_id, {}).get("avg_wait_minutes")
+                line = f"- {s['name']} ({s['city']}, {s.get('state','')})"
+                details = []
+                if food:
+                    details.append(f"Food: {', '.join(food)}")
+                if park is not None:
+                    details.append(f"Parking: {park}% available")
+                if shower is not None:
+                    details.append(f"Shower wait: {shower} min")
+                if s.get("has_lounge"):
+                    details.append("Drivers' lounge")
+                if details:
+                    line += " — " + "; ".join(details)
+                lines.append(line)
+    except Exception as e:
+        print(f"[chat_context] Databricks stop lookup failed: {e}")
+
+    # Fallback to local JSON if Databricks gave us nothing usable
+    if not lines:
+        for l in LOCATIONS:
+            details = []
+            if l.get("food_available"):
+                details.append(f"Food: {l['food_available']}")
+            if l.get("parking_forecast_pct") is not None:
+                details.append(f"Parking: {l['parking_forecast_pct']}% available")
+            if l.get("shower_wait_min") is not None:
+                details.append(f"Shower wait: {l['shower_wait_min']} min")
+            line = f"- {l['name']} ({l['city']})"
+            if details:
+                line += " — " + "; ".join(details)
+            lines.append(line)
+
+    text = "\n".join(lines) if lines else "  (no stop data available)"
+    _chat_stops_cache["text"] = text
+    _chat_stops_cache["ts"] = now
+    return text
+
+
 def ask_ai(prompt_text, max_tokens=450):
     try:
         model_id = os.getenv("BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0")
@@ -260,10 +336,22 @@ def api_ai():
         )
     else:
         user_msg = body.get("message", "")
+        stops_context = _build_chat_stops_context()
+        pref_context = ""
+        learned = _driver_preferences_cache.get(str(DEMO_DRIVER["id"]), {})
+        if learned:
+            pref_context = "Known driver preferences from earlier chat: " + "; ".join(
+                f"{k.replace('_', ' ')}: {v}" for k, v in learned.items()
+            ) + ". "
         prompt = (
             f"You are RoadIQ, Pilot Flying J's AI driver assistant. "
             f"Driver is James Okafor, Elite member (Push for Points), Nashville→Atlanta, fuel risk at 140mi remaining. "
-            f"Answer this question helpfully and concisely (under 80 words): {user_msg}"
+            f"{pref_context}\n"
+            f"Real Pilot/Flying J stops on this route, with amenities and food options:\n{stops_context}\n\n"
+            f"Answer the driver's question using ONLY the stop data above — never invent locations, "
+            f"prices, or food options not listed. If the answer isn't in the data provided, say so "
+            f"honestly and suggest what you can help with instead. "
+            f"Answer helpfully and concisely (under 80 words): {user_msg}"
         )
 
     result = ask_ai(prompt)
