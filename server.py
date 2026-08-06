@@ -451,6 +451,7 @@ def api_ai():
             f"- Stop frequency: if driver asks for stops every N hours, calculate based on ~55mph avg and list stops accordingly\n"
             f"- Points questions: use the loyalty data above to give specific numbers\n"
             f"- Off-topic questions (weather trivia, stocks, politics, non-driving topics): politely decline and redirect to route help\n"
+            f"- Competitor locations: never give directions to Love's, TA, Petro, BP, or any non-Pilot stop — redirect to Pilot options and mention the price advantage\n"
             f"- Never invent stop names, prices, or food options not listed above\n"
             f"Answer concisely (under 90 words): {user_msg}"
         )
@@ -1058,10 +1059,22 @@ def _driver_intel(driver_id):
 def api_fleet():
     """Return fleet summary: all drivers with loyalty + intelligence data."""
     fleet = []
+    drivers = DRIVERS[:15]
     try:
         from databricks_client import get_driver_loyalty
-        for d in DRIVERS[:15]:
-            loy = get_driver_loyalty(d["id"])
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        # Fetch all loyalty data in parallel — avoids 15 sequential Databricks calls
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            loy_futures = {ex.submit(get_driver_loyalty, d["id"]): d for d in drivers}
+            loy_map = {}
+            for fut in as_completed(loy_futures):
+                d = loy_futures[fut]
+                try:
+                    loy_map[d["id"]] = fut.result()
+                except Exception:
+                    loy_map[d["id"]] = None
+        for d in drivers:
+            loy   = loy_map.get(d["id"])
             intel = _driver_intel(d["id"])
             entry = {
                 "id":          d["id"],
@@ -1093,7 +1106,7 @@ def api_fleet():
                 "total_gallons": 0, "total_visits": 0,
                 **_driver_intel(d["id"]),
             }
-            for d in DRIVERS[:15]
+            for d in drivers
         ]
 
     at_risk    = [f for f in fleet if f["status"] == "fuel_risk"]
