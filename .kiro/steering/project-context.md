@@ -80,7 +80,7 @@ roadiq/
 
 ## Demo Driver
 Default demo: **James Okafor** (driver ID 7)
-- Route: Nashville, TN → Atlanta, GA
+- Route: Nashville, TN → Atlanta, GA (or Nashville → Dallas for extended demo)
 - Status: fuel_risk (140 miles remaining)
 - Tier: MyRewards / Elite
 - Needs: oversized parking, shower, prefers Subway

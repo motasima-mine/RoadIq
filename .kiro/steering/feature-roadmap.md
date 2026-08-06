@@ -1,13 +1,13 @@
 # RoadIQ — Feature Roadmap
 
 ## Status Key
-- **Built** — working in the current app.py
+- **Built** — working in the current server.py / index.html
 - **Building** — planned for the 48-hour window, not yet implemented
 - **Out of Scope** — mentioned in pitch narrative only, not being built
 
 ---
 
-## Built (6 features)
+## Built (20 features — as of 2026-08-05)
 
 ### 1. My Trip View
 Full trip overview on app open — fuel level, vehicle health, loyalty tier, current route. Color-coded KPI cards signal urgency at a glance.
@@ -27,65 +27,66 @@ On app load, RoadIQ displays an alert before the driver touches anything — fue
 ### 6. Vehicle Health Alert
 If vehicle health is medium/poor, warning surfaces in Journey Optimizer tab with prompt to book inspection at recommended stop.
 
+### 7. Journey Planner Map (SVG)
+Driver enters From/To. SVG route renders instantly with stop pins. Dark background, Pilot red route line. No tiles — renders on any network.
+
+### 8. Loyalty Push-for-Elite
+Elite threshold at 1,200 gal/month. Gold progress bar, monthly estimate from lifetime Databricks gallons / months. Badges and subtitle update dynamically.
+
+### 9. Weather Ribbon
+5-point Open-Meteo weather across route — severity-coded chips, banner on caution/severe. No API key.
+
+### 10. 3-Way Stop Filter + Competitor View
+Optimized / All Stops / Competitors toggle. Competitor cards show what Pilot has that they don't; green "Pilot wins" sub-card.
+
+### 11. Return Load Opportunities
+After planning a trip, shows 3 ranked return loads from the drop-off city. Net earnings = gross_rate − (gallons × real Pilot fleet price). Route-aware via `_last_plan`.
+
+### 12. Proactive Re-Route Alert
+15s after plan resolves, randomizes from 3 scenarios (parking spike / price jump / shower wait). Show Alternatives or Keep My Plan.
+
+### 13. Parking/Shower Reservation
+PFJ-XXXXX reservation code in stop advice modal. Triggers Celonis preference write-back silently.
+
+### 14. Repeat Route Memory
+localStorage stores last 10 trips. Banner + one-tap auto-plan after ≥2 runs on same route.
+
+### 15. Celonis Preference Write-Back (5 fields)
+Chat → extract food/shower/preferred_stop/avoided_stop/typical_gallons → cache + Celonis write → injected into next /api/plan Bedrock prompt.
+
+### 16. Fleet Insights Bar
+3 cards: Missed Pilot Stops, Est. Missed Savings ($), On Pilot Streak. Computed from `_driver_intel()` across all 15 drivers.
+
+### 17. Driver Intel Badges
+Each driver row: HOS badge (green/amber/red), last stop badge (Pilot ✅ / competitor ❌ + name), Pilot streak badge.
+
+### 18. Smart Assign
+⚡ Smart Assign button per unassigned load. `/api/fleet/suggest` ranks top-5 drivers by HOS/fuel/Pilot alignment/tier. Modal shows score, reason, and confirms assignment.
+
+### 19. Driver Push Notification
+Slide-in banner after assignment: "✅ Load Assigned" + "View Optimized Route →" CTA. Auto-builds trip. Auto-dismisses after 8s.
+
+### 20. RoadIQ Tab Dynamic Rewrite
+`updateRoadIQTab(stop, from, to)` — no hardcoded text. Pre-trip: "Plan a trip" placeholder. Post-trip: route title, fuel/tier/miles badges, first stop card. "View My Plan →" scrolls to plan results.
+
 ---
 
-## Building Next (6 features)
+## Out of Scope / Future Phase
 
-### 7. Journey Planner Map
-- Driver enters From/To
-- Real road route renders on interactive Folium map
-- Pilot stops drop as pins along route
-- RoadIQ Pick highlighted
-- **Tech:** Folium + OSRM routing (free, no API key)
+### Multi-Stop Trip Planning
+Chained OSRM waypoints, HOS-aware multi-leg route. Future phase.
 
-### 8. Loyalty Personalization
-- Tier-based offers pushed at recommended stop
-- Platinum: free coffee + priority shower
-- Gold: bonus points on diesel
-- Standard: points multiplier
-- **Connects:** driver spend → loyalty revenue narrative
+### Arrival Offer Trigger
+Proximity-based personalized offers. Needs geofence trigger. Future phase.
 
-### 9. Multi-Stop Trip Planning
-- Driver sets full day's run (multiple legs)
-- RoadIQ plans fuel stops across entire route
-- Accounts for HOS windows, fuel thresholds, preferred timing
-- **Tech:** Chained OSRM waypoints + AI planning prompt
+### Weigh Station Locations
+Static FHWA JSON overlaid as pins on SVG map. Discussed, not built.
 
-### 10. Arrival Offer Trigger
-- When driver approaches recommended stop, personalized offer auto-generates
-- Free item, bonus points, or priority access
-- Closes the loyalty loop inside the app
-- **Trigger:** proximity to stop coordinates
-
-### 11. My Points & Rewards
-- Dedicated loyalty tab
-- Current points balance, points earned this trip, active offers
-- Progress bar to next reward tier
-
-### 12. Mobile Fueling Alert
-- If corridor has mobile fueling window available, banner surfaces
-- Shows timing, location, estimated cost savings
-- Connects to existing Pilot mobile fueling program
-
----
-
-## Out of Scope (pitch narrative only)
+### Fuel Price Trend Sparkline
+Historical `fct_fuel_supply_price` delta or ML prediction. Future phase.
 
 ### Driver Wellness / HOS
-Fatigue detection, rest window suggestions. Requires ELD integration — future phase.
+Fatigue detection. Requires ELD integration. Future phase.
 
 ### Predictive Maintenance
-Real-time fault code monitoring from telematics. Needs OBD/telematics API — future phase.
-
-### Weather & Road Conditions
-Real-time weather alerts, road closures, re-routing. Needs weather API + route deviation logic — future phase.
-
----
-
-## Implementation Priority for "Building" Features
-1. Journey Planner Map (highest demo impact — visual)
-2. Loyalty Personalization (connects to revenue story)
-3. Multi-Stop Trip Planning (differentiator)
-4. Arrival Offer Trigger (closes loop)
-5. My Points & Rewards (UI tab)
-6. Mobile Fueling Alert (banner addition)
+Real-time fault codes from telematics. Needs OBD API. Future phase.
