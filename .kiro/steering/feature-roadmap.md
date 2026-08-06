@@ -19,7 +19,7 @@ All Pilot stops on the driver's route displayed as cards with parking %, shower 
 AI-written personalized stop plan via Amazon Bedrock (Claude). Covers fuel timing, parking, shower, food, loyalty perks. Uses `prompts/journey_optimizer.txt`.
 
 ### 4. Ask RoadIQ Chat
-Conversational AI co-pilot. Driver types or taps quick prompts, gets specific Pilot stop recommendations with reasoning. Uses `prompts/driver_chat.txt`.
+Conversational AI co-pilot. Driver types or taps quick prompts, gets specific Pilot stop recommendations with reasoning. Verified prompts: food nearby, book parking (PFJ-XXXXX code), stop frequency (55 mph calc), points earnings, off-topic guardrail redirect.
 
 ### 5. Proactive Push Banner
 On app load, RoadIQ displays an alert before the driver touches anything — fuel miles remaining, best stop name, key stats. No button click needed.
@@ -28,7 +28,7 @@ On app load, RoadIQ displays an alert before the driver touches anything — fue
 If vehicle health is medium/poor, warning surfaces in Journey Optimizer tab with prompt to book inspection at recommended stop.
 
 ### 7. Journey Planner Map (SVG)
-Driver enters From/To. SVG route renders instantly with stop pins. Dark background, Pilot red route line. No tiles — renders on any network.
+Driver enters From/To. SVG route renders instantly with stop pins. Dark background, Pilot red route line. No tiles — renders on any network. Verified routes: Knoxville→Dallas, Nashville→Miami, Nashville→Atlanta. 27 stops in locations.json covering I-40W, I-75, I-75S, I-65 corridors.
 
 ### 8. Loyalty Push-for-Elite
 Elite threshold at 1,200 gal/month. Gold progress bar, monthly estimate from lifetime Databricks gallons / months. Badges and subtitle update dynamically.

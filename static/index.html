@@ -119,7 +119,7 @@ html, body {
 
 /* ── Alert banner ── */
 .alert-banner {
-  background: linear-gradient(135deg, #DC1730, #a01020);
+  background: linear-gradient(135deg, #DC1730, #b01020);
   border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; color: #fff;
 }
 .alert-banner .eyebrow { color: rgba(255,255,255,0.75); }
@@ -226,7 +226,7 @@ html, body {
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s;
 }
-.btn-primary:active { background: #b8121f; }
+.btn-primary:active { background: #c4121f; }
 .btn-secondary {
   display: block; width: 100%;
   background: #f2f2f7; color: #1c1c1e; border: none;
@@ -347,8 +347,10 @@ html, body {
 /* ── Plan map ── */
 #plan-map { height: 280px; border-radius: 14px; overflow: hidden; margin-bottom: 12px; z-index: 0; }
 .leaflet-container { border-radius: 14px; }
-.pilot-pin { background:#DC1730; border:2px solid #fff; border-radius:50%; width:14px; height:14px; box-shadow:0 2px 6px rgba(0,0,0,0.4); }
-.pilot-pin-chosen { background:#DC1730; border:3px solid #fff; border-radius:50%; width:18px; height:18px; box-shadow:0 2px 8px rgba(220,23,48,0.6); }
+/* Pilot pins — SVG location pin shape, Pilot red */
+.pilot-pin svg, .pilot-pin-chosen svg { display:block; }
+/* Competitor pin — small gray dot, visually subordinate */
+.comp-pin { width:7px; height:7px; background:#8e8e93; border:1.5px solid #fff; border-radius:50%; box-shadow:0 1px 3px rgba(0,0,0,0.3); }
 
 /* ── Stop picker ── */
 .stop-picker-item {
@@ -572,7 +574,7 @@ html, body {
 .pilot-win-dist { font-size: 0.62rem; color: #aeaeb2; }
 .pilot-win-price { font-size: 0.95rem; font-weight: 900; color: #fff; }
 .pilot-win-perks { list-style: none; padding: 0; margin: 0; }
-.pilot-win-perks li { font-size: 0.68rem; color: #e5e5ea; padding: 2px 0; }
+.pilot-win-perks li { font-size: 0.68rem; color: #3a3a3c; padding: 2px 0; }
 .pilot-win-perks li::before { content: "✓ "; color: #DC1730; font-weight: 900; }
 .comp-summary-banner {
   background: #1c1c1e;
@@ -888,19 +890,15 @@ html, body {
         <div style="font-size:0.72rem;margin-top:4px">Build a trip on the Plan Trip tab to see your route</div>
       </div>
     </div>
-    <div class="section-title">On Your Route</div>
-    <div class="stop-card">
+    <div class="section-title" id="find-route-title" style="display:none">On Your Route</div>
+    <div class="stop-card" id="find-stop-card" style="display:none">
       <div class="eyebrow" style="color:#DC1730">⭐ RoadIQ Recommended</div>
-      <div class="stop-name">Pilot Knoxville #198</div>
-      <div class="stop-city">Knoxville, TN · ~95 miles ahead</div>
-      <div class="pill-row">
-        <span class="pill pill-green">🅿️ 78% parking</span>
-        <span class="pill">🚿 8 min wait</span>
-        <span class="pill">🍽️ Subway, Denny's</span>
-        <span class="pill pill-green">🤝 Fleet deal</span>
-      </div>
+      <div class="stop-name" id="find-stop-name"></div>
+      <div class="stop-city" id="find-stop-city"></div>
+      <div class="pill-row" id="find-stop-pills"></div>
     </div>
-    <button class="btn-primary" onclick="switchTab('roadiq')">⚡ Get AI Journey Plan</button>
+    <div id="find-no-plan" style="text-align:center;padding:24px 0;color:#636366;font-size:0.82rem">Plan a trip to see your recommended stop</div>
+    <button class="btn-primary" onclick="switchTab('plan')" style="margin-top:8px">⚡ Plan My Trip</button>
   </div><!-- /find -->
 
   <!-- RoadIQ Screen -->
@@ -1094,17 +1092,19 @@ html, body {
         <button class="sfb-btn" id="sfb-competitors" onclick="setStopFilter('competitors')">📍 Compare Stops</button>
       </div>
 
-      <!-- All Pilot stops (optimized + all) -->
+      <!-- Pilot stops list -->
       <div id="pilot-stops-section">
-        <div class="section-title" style="margin-top:4px" id="stops-section-title">All Pilot Stops on Your Route</div>
+        <div class="section-title" style="margin-top:4px" id="stops-section-title">Pilot Stops on Your Route</div>
         <div style="font-size:0.7rem;color:#636366;margin-bottom:10px" id="stops-section-sub">Tap any stop to ask RoadIQ if it's right for you</div>
         <div id="all-stops-list"></div>
+        <!-- Non-Pilot stops appended here in All Stops mode -->
+        <div id="other-stops-list" style="display:none"></div>
       </div>
 
       <!-- Compare Stops view -->
       <div id="competitor-section" style="display:none">
-        <div class="section-title" style="margin-top:4px">📍 Stops Along Your Route</div>
-        <div style="font-size:0.7rem;color:#636366;margin-bottom:10px">Tap any stop to navigate. Pilot fleet pricing shown where available.</div>
+        <div class="section-title" style="margin-top:4px">📍 Compare Stops</div>
+        <div style="font-size:0.7rem;color:#636366;margin-bottom:10px">See why Pilot fleet pricing beats other stops on this route</div>
         <div id="competitor-list"></div>
       </div>
 
@@ -1888,6 +1888,10 @@ function buildTrip() {
   lastFrom = from; lastTo = to; lastPrefs = prefs; lastHos = hosVal;
   lastFuelPct = fuelPct; lastCargo = cargo; lastArriveBy = arriveBy;
 
+  // Reset cached non-Pilot stops so re-planning a different route fetches fresh data
+  const otherListEl = document.getElementById('other-stops-list');
+  if (otherListEl) { otherListEl.dataset.loaded = ''; otherListEl.innerHTML = ''; }
+
   fetch('/api/plan', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -2107,8 +2111,9 @@ function updateHomeAlert(data) {
     }
   };
 
-  // Update RoadIQ tab with the same stop data
+  // Update RoadIQ tab and Find tab with the same stop data
   updateRoadIQTab(stop, from, to);
+  updateFindTab(stop);
 
   // pulse the eyebrow
   banner.querySelector('.eyebrow').textContent = '⚡ RoadIQ Alert';
@@ -2172,6 +2177,32 @@ function updateRoadIQTab(stop, from, to) {
   }
 }
 
+function updateFindTab(stop) {
+  const titleEl  = document.getElementById('find-route-title');
+  const cardEl   = document.getElementById('find-stop-card');
+  const noPlanEl = document.getElementById('find-no-plan');
+  if (!stop) return;
+  if (titleEl)  titleEl.style.display  = '';
+  if (cardEl)   cardEl.style.display   = '';
+  if (noPlanEl) noPlanEl.style.display = 'none';
+  const nameEl  = document.getElementById('find-stop-name');
+  const cityEl  = document.getElementById('find-stop-city');
+  const pillsEl = document.getElementById('find-stop-pills');
+  if (nameEl) nameEl.textContent = stop.name || '';
+  if (cityEl) {
+    const mi = stop.miles_from_start || Math.round(stop.mile_marker || 0);
+    cityEl.textContent = (stop.city || '') + (mi ? ` · ~${mi} miles ahead` : '');
+  }
+  if (pillsEl) {
+    const pills = [];
+    if (stop.parking_pct != null) pills.push(`<span class="pill pill-green">🅿️ ${stop.parking_pct}% parking</span>`);
+    if (stop.shower_wait != null) pills.push(`<span class="pill">🚿 ${stop.shower_wait} min wait</span>`);
+    if (stop.food)                pills.push(`<span class="pill">🍽️ ${stop.food}</span>`);
+    if (stop.fleet_deal)          pills.push(`<span class="pill pill-green">🤝 Fleet deal</span>`);
+    pillsEl.innerHTML = pills.join('');
+  }
+}
+
 // ── Plan map (Leaflet real tiles) ─────────────────────────────────────────────
 let _planMap = null;
 
@@ -2209,12 +2240,31 @@ function renderPlanMap(data) {
     L.polyline([data.from_coords, data.to_coords], { color: '#DC1730', weight: 4, opacity: 0.7, dashArray: '8 6' }).addTo(map);
   }
 
-  // Stop markers
+  // SVG location pin builder — Pilot red for chosen/all stops
+  function pilotPinSVG(size, color) {
+    return `<svg width="${size}" height="${size*1.4}" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 0C7.6 0 4 3.6 4 8c0 6 8 16 8 16s8-10 8-16c0-4.4-3.6-8-8-8z" fill="${color}" stroke="#fff" stroke-width="1.5"/>
+      <circle cx="12" cy="8" r="3.5" fill="#fff"/>
+    </svg>`;
+  }
+
+  // Competitor dots first (smaller, gray) so Pilot pins naturally paint over them
+  fetch('/api/competitors').then(r => r.json()).then(cd => {
+    (cd.competitors || []).forEach(c => {
+      if (!c.lat || !c.lon) return;
+      const icon = L.divIcon({ className: '', html: '<div class="comp-pin"></div>', iconSize: [7, 7], iconAnchor: [3.5, 3.5] });
+      L.marker([c.lat, c.lon], { icon, zIndexOffset: -500 }).addTo(map)
+        .bindPopup(`<b>${c.brand}</b><br>${c.name}<br>${c.city}, ${c.state}<br>⛽ $${c.diesel_price?.toFixed(3)||'—'}/gal retail`);
+    });
+  }).catch(() => {});
+
+  // Pilot stop markers — SVG location pin, clearly Pilot-branded
   (data.all_stops || []).forEach(s => {
     if (!s.lat || !s.lon) return;
-    const cls = s.is_chosen ? 'pilot-pin-chosen' : 'pilot-pin';
-    const icon = L.divIcon({ className: '', html: `<div class="${cls}"></div>`, iconSize: s.is_chosen ? [18,18] : [14,14], iconAnchor: s.is_chosen ? [9,9] : [7,7] });
-    const marker = L.marker([s.lat, s.lon], { icon }).addTo(map);
+    const sz = s.is_chosen ? 20 : 16;
+    const color = '#DC1730';
+    const icon = L.divIcon({ className: '', html: pilotPinSVG(sz, color), iconSize: [sz, sz*1.4], iconAnchor: [sz/2, sz*1.4] });
+    const marker = L.marker([s.lat, s.lon], { icon, zIndexOffset: 500 }).addTo(map);
     const label = s.is_chosen
       ? `<b>${s.name}</b><br>${s.city}<br>⛽ $${s.diesel_price?.toFixed(3)||'—'} · 🅿️ ${s.parking_pct||'—'}% · 🚿 ${s.shower_wait||'—'} min`
       : `${s.name}<br>${s.city}`;
@@ -2246,10 +2296,15 @@ let _currentStopFilter = 'optimized';
 function setStopFilter(mode) {
   _currentStopFilter = mode;
   ['optimized','all','competitors'].forEach(m => {
-    document.getElementById('sfb-' + m).classList.toggle('active', m === mode);
+    const btn = document.getElementById('sfb-' + m);
+    if (btn) btn.classList.toggle('active', m === mode);
   });
   const pilotSection = document.getElementById('pilot-stops-section');
   const compSection  = document.getElementById('competitor-section');
+  const otherList    = document.getElementById('other-stops-list');
+  const title = document.getElementById('stops-section-title');
+  const sub   = document.getElementById('stops-section-sub');
+
   if (mode === 'competitors') {
     pilotSection.style.display = 'none';
     compSection.style.display  = 'block';
@@ -2257,38 +2312,67 @@ function setStopFilter(mode) {
   } else {
     pilotSection.style.display = 'block';
     compSection.style.display  = 'none';
-    const title = document.getElementById('stops-section-title');
-    const sub   = document.getElementById('stops-section-sub');
     if (mode === 'optimized') {
       title.textContent = 'AI-Optimized Stops';
       sub.textContent   = 'RoadIQ selected these for you — tap to ask why';
+      if (otherList) otherList.style.display = 'none';
     } else {
-      title.textContent = 'All Pilot Stops on Your Route';
-      sub.textContent   = 'Tap any stop to ask RoadIQ if it\'s right for you';
+      // All Stops = every stop regardless of brand
+      title.textContent = 'All Stops on Your Route';
+      sub.textContent   = 'All fuel stops along this corridor — Pilot and others';
+      if (otherList) {
+        otherList.style.display = 'block';
+        if (!otherList.dataset.loaded) loadOtherStops();
+      }
     }
     if (lastPlanData) renderAllStops(lastPlanData, mode);
   }
 }
 
+function loadOtherStops() {
+  const el = document.getElementById('other-stops-list');
+  el.dataset.loaded = '1';
+  el.innerHTML = '<div style="text-align:center;padding:12px;color:#8e8e93;font-size:0.75rem"><span class="spinner"></span> Loading all stops…</div>';
+  fetch('/api/competitors').then(r => r.json()).then(data => {
+    const pilotPrice = data.pilot_fleet_price;
+    el.innerHTML = `
+      <div style="font-size:0.72rem;font-weight:700;color:#636366;margin:10px 0 6px;text-transform:uppercase;letter-spacing:.05em">Other Fuel Stops on This Route</div>
+      ${data.competitors.map(c => `
+        <div class="stop-card" style="border-left:4px solid #8e8e93;margin-bottom:10px">
+          <div style="font-size:0.65rem;font-weight:700;color:#636366;text-transform:uppercase;margin-bottom:4px">${c.brand}</div>
+          <div class="stop-name">${c.name}</div>
+          <div class="stop-city">${c.city}, ${c.state} · mi ${c.mile_marker}</div>
+          <div class="pill-row" style="margin-top:6px">
+            <span class="pill" style="color:#DC1730;font-weight:700">⛽ $${c.diesel_price?.toFixed(3)||'—'}/gal retail</span>
+            ${c.nearest_pilot ? `<span class="pill pill-green">✅ Pilot ${c.nearest_pilot.miles_away}mi away · $${c.nearest_pilot.diesel_price?.toFixed(3)||'—'} fleet</span>` : ''}
+          </div>
+        </div>`).join('')}
+    `;
+  }).catch(() => {
+    el.innerHTML = '<div style="color:#8e8e93;font-size:0.75rem;padding:8px">Other stop data unavailable.</div>';
+  });
+}
+
 function loadCompetitors() {
   const el = document.getElementById('competitor-list');
-  el.innerHTML = '<div style="text-align:center;padding:20px;color:#8e8e93;font-size:0.75rem"><span class="spinner"></span> Loading competitor data…</div>';
+  el.innerHTML = '<div style="text-align:center;padding:12px;color:#8e8e93;font-size:0.75rem"><span class="spinner"></span> Loading other stops…</div>';
   fetch('/api/competitors').then(r => r.json()).then(data => {
-    document.getElementById('competitor-section').dataset.loaded = '1';
+    el.dataset.loaded = '1';
     const avgAdv = data.avg_pilot_advantage;
     const pilotPrice = data.pilot_fleet_price;
     el.innerHTML = `
       <div class="comp-summary-banner">
         <div>
           <div class="comp-summary-val">$${avgAdv.toFixed(3)}/gal</div>
-          <div class="comp-summary-label">avg Pilot fleet savings vs competitors on this route</div>
+          <div class="comp-summary-label">avg Pilot fleet savings vs other stops on this route</div>
         </div>
         <div style="font-size:1.8rem;margin-left:auto">🏆</div>
       </div>
+      <div style="font-size:0.72rem;font-weight:700;color:#636366;margin:10px 0 6px;text-transform:uppercase;letter-spacing:.05em">Other Stops on This Route</div>
       ${data.competitors.map(c => renderCompetitorCard(c, pilotPrice)).join('')}
     `;
   }).catch(() => {
-    el.innerHTML = '<div style="color:#DC1730;font-size:0.75rem;padding:8px">Could not load competitor data.</div>';
+    el.innerHTML = '<div style="color:#DC1730;font-size:0.75rem;padding:8px">Could not load other stop data.</div>';
   });
 }
 
@@ -2316,7 +2400,7 @@ function renderCompetitorCard(c, pilotPrice) {
         </div>
         <div style="font-size:0.72rem;font-weight:700;color:#fff;margin-bottom:4px">${c.nearest_pilot.name} · ${c.nearest_pilot.city}</div>
         <ul class="pilot-win-perks">${perks}</ul>
-        <button class="nav-btn" style="margin-top:8px" onclick="window.open('https://www.google.com/maps/search/?api=1&query=${pilotNavName}','_blank')">🧭 Navigate to Pilot</button>
+        <button class="nav-btn" style="margin-top:8px" onclick="navigateToStop(null,null,'${pilotNavName}')">🧭 Navigate to Pilot</button>
       </div>
     </div>`;
 }
@@ -2544,7 +2628,7 @@ function loadRouteMemory() {
 }
 
 function checkRepeatRoute() {
-  const routes = loadRouteMemory();
+  const routes = loadRouteMemory().sort((a, b) => b.count - a.count);
   if (!routes.length) return;
   const top = routes[0];
   if (top.count < 2) return; // Only show after 2+ trips on same route
@@ -2726,8 +2810,9 @@ try {
   if (saved) {
     const parsed = JSON.parse(saved);
     updateHomeAlert(parsed);
-    // Also seed RoadIQ tab and chat welcome immediately (no plan data, use saved stop)
+    // Also seed RoadIQ tab, Find tab, and chat welcome immediately
     updateRoadIQTab(parsed.stop, parsed.from, parsed.to);
+    updateFindTab(parsed.stop);
     const welcomeEl = document.getElementById('chat-welcome-msg');
     if (welcomeEl && parsed.stop) {
       const fromShort = (parsed.from || '').split(',')[0];

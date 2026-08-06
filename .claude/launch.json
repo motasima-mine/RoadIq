@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "RoadIQ",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["server.py"],
+      "port": 5003,
+      "env": {
+        "PORT": "5003"
+      }
+    }
+  ]
+}
