@@ -1,6 +1,6 @@
 # RoadIQ — Project Status
 
-**Last updated:** 2026-08-05 ET (saved scripts/test_celonis_dim_loyalty_id_filter.py — confirmed dim_loyalty_id still doesn't filter load_data_driver_info)
+**Last updated:** 2026-08-14 ET — saved scripts/_tmp_check_knox_miami.py
 
 ## All Features Complete
 

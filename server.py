@@ -452,33 +452,57 @@ def api_plan():
     except Exception as e:
         print(f"[plan] databricks unavailable: {e}")
 
-    # Fall back to local locations.json
+    # Reject Databricks stops with scrambled/synthetic coordinates (sandbox
+    # data quality issue — city/state/lat/lon can be independently randomized
+    # per row) before deciding whether to fall back to local data. Without
+    # this check, a single garbage row (e.g. "CONOCO FORT MYERS" landing in
+    # Montana) makes `corridor_stops` non-empty and silently blocks the local
+    # locations.json fallback below, even though that one row is useless.
+    if corridor_stops:
+        corridor_stops = [
+            s for s in corridor_stops
+            if s.get("lat") and 24 <= s["lat"] <= 50
+            and s.get("lon") is not None and -125 <= s["lon"] <= -65
+        ]
+    def _loc_to_stop(l):
+        return {
+            "name": l["name"],
+            "city": l["city"],
+            "lat": l["lat"],
+            "lon": l["lon"],
+            "has_lounge": True,
+            "has_idle_air": False,
+            "has_mobile_fuel": False,
+            "is_pfj": True,
+            "in_network": True,
+            "brand": "PILOT",
+            "diesel_brand": "PILOT",
+            "interstate": "",
+            "visited_before": False,
+            "parking_forecast_pct": l.get("parking_forecast_pct", 75),
+            "shower_wait_min": l.get("shower_wait_min", 10),
+            "food_available": l.get("food_available", ""),
+            "fleet_fuel_agreement": l.get("fleet_fuel_agreement", False),
+        }
+    local_stops = [_loc_to_stop(l) for l in LOCATIONS]
+
+    # Fall back to local locations.json if Databricks gave us nothing usable
+    # after coordinate validation (a single geographically-irrelevant-but-
+    # technically-valid-US-coordinate row, e.g. Montana on a Nashville-Dallas
+    # trip, can otherwise make corridor_stops non-empty here even though it
+    # will just get rejected by the corridor-distance filter below, leaving
+    # nothing — so also merge local stops in whenever Databricks came back
+    # thin, not just when it was completely empty).
     if not corridor_stops:
-        def _loc_to_stop(l):
-            return {
-                "name": l["name"],
-                "city": l["city"],
-                "lat": l["lat"],
-                "lon": l["lon"],
-                "has_lounge": True,
-                "has_idle_air": False,
-                "has_mobile_fuel": False,
-                "is_pfj": True,
-                "in_network": True,
-                "brand": "PILOT",
-                "diesel_brand": "PILOT",
-                "interstate": "",
-                "visited_before": False,
-                "parking_forecast_pct": l.get("parking_forecast_pct", 75),
-                "shower_wait_min": l.get("shower_wait_min", 10),
-                "food_available": l.get("food_available", ""),
-                "fleet_fuel_agreement": l.get("fleet_fuel_agreement", False),
-            }
-        # Try corridor bbox first; if still empty, use all local stops
-        corridor_stops = [_loc_to_stop(l) for l in LOCATIONS
+        corridor_stops = [l for l in local_stops
                           if (min_lat <= l["lat"] <= max_lat and min_lon <= l["lon"] <= max_lon)]
         if not corridor_stops:
-            corridor_stops = [_loc_to_stop(l) for l in LOCATIONS]
+            corridor_stops = local_stops
+    elif len(corridor_stops) < 3:
+        # Databricks returned something, but too few real stops to be useful
+        # on its own — merge in local stops (dedup by name) as a safety net.
+        existing_names = {s["name"] for s in corridor_stops}
+        corridor_stops = corridor_stops + [l for l in local_stops if l["name"] not in existing_names]
 
     # Build optimized stop list — pick 1-3 stops spaced along route
     # Determine number of stops needed based on fuel range and route distance
@@ -513,10 +537,17 @@ def api_plan():
             # cross product magnitude / line length
             return abs((slon - flon)*dx - (slat - flat)*dy) / (length_sq ** 0.5)
 
-        # Max deviation: 0.5° ≈ 35 miles either side of the straight-line corridor
-        MAX_PERP_DEG = 0.5
+        # Scale tolerance with route length — a fixed 0.5° (~35mi) corridor is
+        # too narrow for long diagonal routes (e.g. Nashville->Dallas, ~665mi)
+        # and was filtering out every valid stop, leaving stops/all_stops
+        # empty. Min ~35mi, max ~140mi either side of the straight-line corridor.
+        route_len_deg = (length_sq ** 0.5)
+        MAX_PERP_DEG = min(2.0, max(0.5, route_len_deg * 0.20))
 
-        # Drop stops behind origin (t < 0.05) or too far off the corridor
+        # Drop stops behind origin (t < 0.05) or too far off the corridor.
+        # (No upper bound on route_progress — a stop essentially at the
+        # destination is still a valid stop, and for some routes it's the
+        # only local stop that passes the perpendicular-distance check at all.)
         corridor_stops = [
             s for s in corridor_stops
             if route_progress(s) >= 0.05 and perp_distance_deg(s) <= MAX_PERP_DEG
