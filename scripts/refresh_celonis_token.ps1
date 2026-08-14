@@ -1,12 +1,8 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Celonis MCP Token Refresh Script
 # ─────────────────────────────────────────────────────────────────────────────
-# Run this to get a fresh OAuth token and update BOTH mcp.json configs:
-#   - User-level:      ~/.kiro/settings/mcp.json
-#   - Workspace-level:  <project root>/.kiro/settings/mcp.json
-# Workspace-level config takes precedence over user-level when both define
-# the same server name, so both must be kept in sync or Kiro will keep using
-# whichever one has the stale token. Token expires every 15 minutes (899s).
+# Run this to get a fresh OAuth token and update ~/.kiro/settings/mcp.json
+# Token expires every 15 minutes (899 seconds)
 #
 # Reads credentials from .env in the project root — never hardcode secrets here.
 #
@@ -32,8 +28,7 @@ $ClientId = $envVars["CELONIS_CLIENT_ID"]
 $ClientSecret = $envVars["CELONIS_CLIENT_SECRET"]
 $TokenUrl = $envVars["CELONIS_TOKEN_URL"]
 $McpServerUrl = "https://ai-context-model-pilot-pov.us-2.celonis.cloud/studio-copilot/api/v1/mcp-servers/mcp/64c73b17-5383-4263-a6aa-58de560edf6d"
-$UserMcpConfigPath = "$env:USERPROFILE\.kiro\settings\mcp.json"
-$WorkspaceMcpConfigPath = Join-Path $PSScriptRoot "..\.kiro\settings\mcp.json"
+$McpConfigPath = "$env:USERPROFILE\.kiro\settings\mcp.json"
 
 if (-not $ClientId -or -not $ClientSecret -or -not $TokenUrl) {
     Write-Host "ERROR: Missing CELONIS_CLIENT_ID, CELONIS_CLIENT_SECRET, or CELONIS_TOKEN_URL in .env" -ForegroundColor Red
@@ -63,21 +58,9 @@ try {
     }
 
     $json = $config | ConvertTo-Json -Depth 4
+    Set-Content -Path $McpConfigPath -Value $json -Encoding UTF8
 
-    # Write to user-level config
-    Set-Content -Path $UserMcpConfigPath -Value $json -Encoding UTF8
-    Write-Host "Updated $UserMcpConfigPath" -ForegroundColor Green
-
-    # Write to workspace-level config too (takes precedence over user-level
-    # when both define the same server -- must stay in sync or Kiro will use
-    # whichever one still has the stale token)
-    if (Test-Path (Split-Path $WorkspaceMcpConfigPath -Parent) -PathType Container) {
-        Set-Content -Path $WorkspaceMcpConfigPath -Value $json -Encoding UTF8
-        Write-Host "Updated $WorkspaceMcpConfigPath" -ForegroundColor Green
-    } else {
-        Write-Host "Skipped workspace config (directory not found: $(Split-Path $WorkspaceMcpConfigPath -Parent))" -ForegroundColor Yellow
-    }
-
+    Write-Host "Updated $McpConfigPath" -ForegroundColor Green
     Write-Host "Kiro will auto-reconnect to Celonis MCP." -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Token preview: $($token.Substring(0, 50))..." -ForegroundColor DarkGray
