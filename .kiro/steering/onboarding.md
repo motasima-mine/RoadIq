@@ -7,7 +7,7 @@ Claude, Kiro, Cursor, or a human — read this before making changes.
 
 ## Current State
 
-**Last updated:** 2026-08-17 10:45 ET — fixed low-fuel stop planning bug (see CHANGELOG for details) — /api/plan now respects real fuel-safe range per leg and warns explicitly when no reachable stop exists, instead of silently showing a too-far stop
+**Last updated:** 2026-08-17 13:10 ET — found and fixed the real root cause of "taking too long"/hanging requests: databricks_client.py's SQL connection was failing SSL certificate verification against the corporate TLS-inspection proxy (Basic Constraints not marked critical -- SSLCertVerificationError), and the connector's Thrift backend retries a failing connection for up to 900 seconds before giving up. This connector was the one client in the whole project missing an SSL-verification bypass (everything else uses verify=False for the same corporate-proxy reason). Fixed with `_tls_no_verify=True` passed to `databricks_sql.connect()` in `_connect()`. All endpoints now consistently fast: /api/driver 3-14s, /api/fleet 8s, /api/plan 15.7s, /api/ai chat 6s. Also disabled Flask's debug/reloader by default (FLASK_DEBUG=1 env var re-enables it) since it was separately causing dropped connections on file saves, and added threaded=True to app.run().
 
 ### Active server: `server.py` (Flask)
 - NOT app.py (Streamlit is legacy/backup)

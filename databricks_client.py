@@ -36,6 +36,18 @@ def _connect():
             server_hostname=host,
             http_path=http_path,
             access_token=token,
+            # Corporate network TLS-inspection proxy injects a CA cert whose
+            # Basic Constraints aren't marked critical, which Python's ssl
+            # module rejects (SSLCertVerificationError). Every other client
+            # in this project bypasses SSL verification the same way
+            # (verify=False on requests/boto3) — this connector's HTTP layer
+            # builds its own SSL context rather than deferring to the global
+            # ssl._create_default_https_context patch in server.py, so it
+            # needs this explicit flag instead.
+            # Without this, a failed connection retries internally for up to
+            # 900 seconds (Thrift backend's default retry policy) before
+            # giving up, which is what made requests appear to hang/time out.
+            _tls_no_verify=True,
         )
     except Exception as e:
         print(f"[databricks] Connection failed: {e}")

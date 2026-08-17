@@ -2076,4 +2076,15 @@ def proxy_tile(z, x, y):
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5002))
     print(f"RoadIQ running at http://localhost:{port}")
-    app.run(debug=True, port=port, host="0.0.0.0")
+    # debug/reloader disabled by default — the debug auto-reloader restarts
+    # the whole process on ANY file change in this OneDrive-synced folder
+    # (background sync activity, editor autosave, even a test script running
+    # nearby), which drops any request in flight at that moment. From the
+    # browser this looks exactly like a random timeout, and was traced back
+    # to this during demo/testing. Set FLASK_DEBUG=1 in .env to re-enable
+    # debug mode + auto-reload for active development.
+    debug_mode = os.getenv("FLASK_DEBUG", "0") == "1"
+    # threaded=True so one slow request (e.g. a multi-second Databricks/
+    # Bedrock call) doesn't block the dev server from accepting other
+    # connections in the meantime.
+    app.run(debug=debug_mode, use_reloader=debug_mode, threaded=True, port=port, host="0.0.0.0")
