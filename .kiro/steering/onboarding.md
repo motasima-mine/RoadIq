@@ -7,7 +7,7 @@ Claude, Kiro, Cursor, or a human — read this before making changes.
 
 ## Current State
 
-**Last updated:** 2026-08-05 ET (saved scripts/test_celonis_dim_loyalty_id_filter.py — confirmed dim_loyalty_id still doesn't filter load_data_driver_info)
+**Last updated:** 2026-08-17 09:42 ET — saved server.py (fixed Gold->Elite tier wording inconsistency in chat prompt; Elite is 2x pts/gal everywhere now, not 4x)
 
 ### Active server: `server.py` (Flask)
 - NOT app.py (Streamlit is legacy/backup)

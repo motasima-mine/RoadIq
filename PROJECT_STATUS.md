@@ -1,6 +1,6 @@
 # RoadIQ — Project Status
 
-_Last updated: 2026-08-05_
+_Last updated: 2026-08-17 09:42 ET — saved server.py (fixed Gold->Elite tier wording inconsistency in chat prompt; Elite is 2x pts/gal everywhere now, not 4x)_
 
 ## Current Build: All 8 Hackathon Features ✅ + Fleet Intelligence ✅
 

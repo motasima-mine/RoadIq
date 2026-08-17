@@ -1,6 +1,9 @@
 # RoadIQ Auto-Changelog
 _Auto-updated on every .py/.html save. Newest first._
 
+- 2026-08-17 09:42 — saved server.py — fixed chat prompt saying driver is "Gold MyRewards member" earning 4x as Elite (contradicted points_multiplier logic and fallback text elsewhere in the file, both of which use Elite=2x); now consistently "Elite MyRewards member" earning 2x everywhere
+- 2026-08-17 09:36 — saved scripts/_tmp_check_experimental.py
+
 - 2026-08-05 — Fleet Intelligence: added `/api/fleet/suggest` POST endpoint; `_driver_intel()` deterministic HOS/last-stop/streak/missed-savings; fleet insights bar (missed Pilot stops, est. savings, streak counts); Smart Assign modal with AI-ranked top-5 drivers + reasoning; driver push notification banner with "View Optimized Route →" CTA; driver rows show HOS badge (green/amber/red), last stop badge (Pilot ✅ / competitor ❌), pilot streak badge
 
 - 2026-08-05 — RoadIQ tab dynamic rewrite: replaced hardcoded "James Okafor · Nashville → Atlanta" and "Pilot Knoxville #198" static HTML with id-driven elements; added `updateRoadIQTab(stop, from, to)` called from `updateHomeAlert()` and localStorage restore; "View My Plan →" CTA now goes to `switchTab('plan')` + scrolls to plan-results

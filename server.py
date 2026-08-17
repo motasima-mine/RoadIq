@@ -424,22 +424,24 @@ def api_ai():
                               f"Pilot fleet price: ${pilot_fleet:.3f}/gal (saves ~${pilot_retail-pilot_fleet:.3f}/gal vs retail, "
                               f"~${pilot_retail+0.09-pilot_fleet:.3f}/gal vs Love's avg).")
 
-        # Loyalty / points context — James earns 2x (Gold), Elite is 4x
+        # Loyalty / points context — Elite earns 2x pts/gal (matches
+        # points_multiplier logic elsewhere in this file and the fallback
+        # plan text below — Elite is the only tier label used app-wide,
+        # "Gold" and "4x" were an inconsistency, not a real second tier).
         plan_stops_list = _last_plan.get("stops") or []
         stop_count = len(plan_stops_list)
         trip_gal = stop_count * 100   # ~100 gal per semi fill
-        trip_points = trip_gal * 2    # Gold = 2x pts/gal
+        trip_points = trip_gal * 2    # Elite = 2x pts/gal
         loyalty_context = (
             f"LOYALTY FACTS (read back verbatim, do not recalculate):\n"
-            f"- Currently earning: {trip_points} points this trip ({stop_count} stops × ~100 gal × 2 pts/gal).\n"
-            f"- Elite members (4x) would earn: {trip_gal * 4} points on this same trip.\n"
+            f"- Currently earning: {trip_points} points this trip ({stop_count} stops × ~100 gal × 2 pts/gal, Elite tier).\n"
             f"PARKING BOOKING: tap the 'Go' button on any stop card to reserve → PFJ-XXXXX confirmation code.\n"
             f"STOP FREQUENCY: at 55 mph avg, every 2 hrs ≈ 110 miles, every 3 hrs ≈ 165 miles."
         )
 
         prompt = (
             f"You are RoadIQ, Pilot Flying J's AI driver assistant. Be helpful, specific, and friendly. "
-            f"Driver is James Okafor, Gold MyRewards member working toward Elite status. "
+            f"Driver is James Okafor, Elite MyRewards member. "
             f"Current route: {active_from} → {active_to}. "
             f"{pref_context}\n"
             f"Pilot stops on this route with food/amenities:\n{stops_context}\n\n"
