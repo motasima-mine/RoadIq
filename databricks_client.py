@@ -11,11 +11,21 @@ All functions fall back to None on failure — caller handles fallback.
 """
 
 import os
+import threading
 from databricks import sql as databricks_sql
+
+# Reused connection across queries. Opening a fresh Databricks SQL Warehouse
+# connection has real handshake overhead (~1-3s each) — every _query() call
+# used to pay that cost on every request, and several endpoints (/api/driver,
+# /api/plan, chat grounding) make multiple sequential Databricks calls, which
+# compounded into 13-22s response times. Reusing one connection process-wide
+# cuts that overhead to a single connect on cold start / after a failure.
+_conn = None
+_conn_lock = threading.Lock()
 
 
 def _connect():
-    """Create Databricks SQL connection. Returns None if unconfigured."""
+    """Create a fresh Databricks SQL connection. Returns None if unconfigured."""
     host = os.getenv("DATABRICKS_HOST")
     http_path = os.getenv("DATABRICKS_HTTP_PATH")
     token = os.getenv("DATABRICKS_TOKEN")
@@ -32,9 +42,24 @@ def _connect():
         return None
 
 
-def _query(sql_text, params=None):
-    """Execute query, return list of dicts. Returns None on failure."""
-    conn = _connect()
+def _get_conn():
+    """Return the shared connection, creating or replacing it if needed."""
+    global _conn
+    with _conn_lock:
+        if _conn is None:
+            _conn = _connect()
+        return _conn
+
+
+def _query(sql_text, params=None, _retry=True):
+    """
+    Execute query using the shared connection, return list of dicts.
+    Returns None on failure. Automatically reconnects once and retries if
+    the shared connection has gone stale (e.g. Warehouse idle-timeout,
+    dropped network) — SQL Warehouse connections are not kept alive forever.
+    """
+    global _conn
+    conn = _get_conn()
     if not conn:
         return None
     try:
@@ -43,14 +68,19 @@ def _query(sql_text, params=None):
         cols = [d[0] for d in cursor.description]
         rows = cursor.fetchall()
         cursor.close()
-        conn.close()
         return [dict(zip(cols, row)) for row in rows]
     except Exception as e:
         print(f"[databricks] Query failed: {e}")
-        try:
-            conn.close()
-        except Exception:
-            pass
+        # Connection may be stale/broken — drop it and retry once with a
+        # fresh connection rather than failing outright.
+        with _conn_lock:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            _conn = None
+        if _retry:
+            return _query(sql_text, params, _retry=False)
         return None
 
 

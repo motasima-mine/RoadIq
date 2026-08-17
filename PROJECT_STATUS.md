@@ -1,6 +1,6 @@
 # RoadIQ — Project Status
 
-_Last updated: 2026-08-17 09:50 ET — merged experimental into main (excluding Nova Sonic voice prototype); verified /api/driver, /api/plan (Nashville->Dallas), /api/ai chat, /api/competitors, /api/fleet all working post-merge_
+_Last updated: 2026-08-17 10:45 ET — saved static/index.html + server.py (fixed low-fuel stop planning: removed 100mi floor on safe fuel range, stop selection now respects real reachability per leg instead of even trip-fraction spacing, mile_marker reflects true position, and added an explicit fuel_warning + per-stop fuel_break_required flag + red banner/pill in the UI when no stop exists within the driver's fuel range — never silently shows a too-far stop as safe)_
 
 ## Current Build: All 8 Hackathon Features ✅ + Fleet Intelligence ✅
 

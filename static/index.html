@@ -1951,6 +1951,23 @@ function renderTrip(data) {
   ctxBar.innerHTML = chips.join('');
   ctxBar.style.display = chips.length ? 'flex' : 'none';
 
+  // Fuel range warning — shown when no Pilot/Flying J stop is reachable
+  // within the driver's actual fuel-safe range for a leg of the trip.
+  // Never silently show a too-far stop as if it were a safe pick.
+  let fuelWarnBar = document.getElementById('fuel-warning-bar');
+  if (!fuelWarnBar) {
+    fuelWarnBar = document.createElement('div');
+    fuelWarnBar.id = 'fuel-warning-bar';
+    fuelWarnBar.style.cssText = 'background:#fff0f0;border:1px solid #DC1730;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:0.78rem;color:#DC1730;font-weight:600;display:flex;gap:8px;align-items:flex-start';
+    ctxBar.after(fuelWarnBar);
+  }
+  if (data.fuel_warning) {
+    fuelWarnBar.innerHTML = `<span style="font-size:1rem">⚠️</span><span>${data.fuel_warning}</span>`;
+    fuelWarnBar.style.display = 'flex';
+  } else {
+    fuelWarnBar.style.display = 'none';
+  }
+
   // Savings banner
   document.getElementById('savings-val').textContent = data.savings || '$0';
 
@@ -2017,6 +2034,7 @@ function renderTrip(data) {
     const pills = [];
     if (stop.visited_before) pills.push(`⭐ You've stopped here`);
     if (stop.hos_break_required) pills.push(`⏱️ Rest break here`);
+    if (stop.fuel_break_required) pills.push(`⚠️ Beyond your fuel range`);
     if (stop.diesel_price) pills.push(`⛽ $${stop.diesel_price.toFixed(3)}/gal`);
     if (stop.parking_pct) pills.push(`🅿️ ${stop.parking_pct}% parking`);
     if (stop.shower_wait != null) pills.push(`🚿 ${stop.shower_wait} min wait`);

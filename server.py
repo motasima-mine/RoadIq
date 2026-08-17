@@ -593,8 +593,13 @@ def api_plan():
         ((from_coords[0] - to_coords[0])**2 + (from_coords[1] - to_coords[1])**2)**0.5 * 69
     )
     # Fuel range from current level; a stop is needed every ~(range * 0.85) miles
-    # (0.85 safety buffer — don't run below 15%)
-    safe_range = max(fuel_range_mi * 0.85, 100)
+    # (0.85 safety buffer — don't run below 15%). No artificial floor here —
+    # a driver with only 52mi of range must be shown a stop within ~44mi, not
+    # pushed out to some minimum distance. (A floor of 100 previously forced
+    # every plan to space stops at least 100mi apart even when fuel range was
+    # much lower, which is how a "52mi of fuel" driver could see a first stop
+    # placed at 101mi — the driver would run out before reaching it.)
+    safe_range = max(fuel_range_mi * 0.85, 10)
     # num_stops_needed is finalized after HOS is resolved below; placeholder here
     num_stops_needed = max(1, int(rough_miles / max(safe_range, 1)))
 
@@ -641,6 +646,10 @@ def api_plan():
             not s.get("in_network", False),
             not s.get("visited_before", False),
         ))
+
+        def stop_miles_from_origin(stop):
+            return route_progress(stop) * rough_miles
+
         chosen = corridor_stops[:num_stops_needed]  # refined below after HOS
     else:
         chosen = []
@@ -694,24 +703,64 @@ def api_plan():
     if requested_stops:
         num_stops_needed = max(num_stops_needed, int(requested_stops))
     num_stops_needed = max(1, min(num_stops_needed, len(corridor_stops) if corridor_stops else 1))
-    # Re-slice chosen with the refined count, spread evenly across the route
+    # Re-slice chosen with the refined count. Stops must be reachable within
+    # max_between_stops (the real fuel/HOS-safe distance) from the previous
+    # stop (or origin for the first one) — NOT just evenly spaced across the
+    # whole trip. Evenly-spacing by trip fraction (the old approach) could
+    # place the first stop well past the driver's actual safe range (e.g. a
+    # midpoint-based pick landing at mile 101 when the driver only has 52mi
+    # of fuel left).
+    out_of_range_legs = []  # legs where no stop was actually reachable within the fuel-safe range
     if corridor_stops:
         if num_stops_needed >= len(corridor_stops):
             chosen = corridor_stops
-        elif num_stops_needed == 1:
-            # Pick the stop closest to the midpoint
-            chosen = [min(corridor_stops, key=lambda s: abs(route_progress(s) - 0.5))]
+            # Verify each stop is actually reachable from the previous one —
+            # taking "all available stops" doesn't guarantee they're in-range.
+            _last_mile = 0.0
+            for _s in sorted(chosen, key=stop_miles_from_origin):
+                _mi = stop_miles_from_origin(_s)
+                if _mi - _last_mile > max_between_stops:
+                    out_of_range_legs.append({
+                        "from_mile": round(_last_mile),
+                        "nearest_stop_mile": round(_mi),
+                        "safe_range_mi": round(max_between_stops),
+                    })
+                _last_mile = _mi
         else:
-            # Divide route into num_stops_needed equal segments and pick the best
-            # stop in each segment (first by quality then by proximity to segment center)
             chosen = []
-            segment = 1.0 / (num_stops_needed + 1)
-            for i in range(1, num_stops_needed + 1):
-                target = segment * i  # evenly spaced targets: 0.25, 0.5, 0.75 etc
-                bucket = [s for s in corridor_stops if s not in chosen]
-                if bucket:
-                    best = min(bucket, key=lambda s: abs(route_progress(s) - target))
-                    chosen.append(best)
+            last_mile = 0.0
+            remaining = sorted(corridor_stops, key=stop_miles_from_origin)
+            for _ in range(num_stops_needed):
+                # Candidates actually reachable from the last stop (or origin)
+                reachable = [
+                    s for s in remaining
+                    if s not in chosen and last_mile < stop_miles_from_origin(s) <= last_mile + max_between_stops
+                ]
+                if reachable:
+                    # Prefer the furthest reachable stop (maximize distance
+                    # covered per leg) that's still in-range, tie-broken by quality
+                    best = max(reachable, key=lambda s: (
+                        stop_miles_from_origin(s),
+                        s.get("is_pfj", False),
+                        s.get("in_network", False),
+                    ))
+                else:
+                    # Nothing reachable within safe range. Do NOT silently
+                    # present a too-far stop as if it were a safe pick — record
+                    # the gap so the response can explicitly warn the driver,
+                    # then fall back to the closest remaining stop past
+                    # last_mile only so the plan isn't completely empty.
+                    ahead = [s for s in remaining if s not in chosen and stop_miles_from_origin(s) > last_mile]
+                    if not ahead:
+                        break
+                    best = min(ahead, key=stop_miles_from_origin)
+                    out_of_range_legs.append({
+                        "from_mile": round(last_mile),
+                        "nearest_stop_mile": round(stop_miles_from_origin(best)),
+                        "safe_range_mi": round(max_between_stops),
+                    })
+                chosen.append(best)
+                last_mile = stop_miles_from_origin(best)
             chosen.sort(key=route_progress)
 
     # Build stops response
@@ -719,7 +768,12 @@ def api_plan():
     for i, s in enumerate(chosen):
         name = s.get("name", "Pilot Stop")
         city = s.get("city", "")
-        mile_marker = round(total_miles * (i + 1) / (len(chosen) + 1))
+        # Real position along the route, not an evenly-spaced synthetic value —
+        # a stop chosen to respect the fuel-safe range must report its ACTUAL
+        # mile marker, otherwise the UI can show "stop at mile 101" for a stop
+        # that's actually much closer (or claim a stop is reachable when the
+        # display number doesn't match where it truly sits on the route).
+        mile_marker = round(max(0.0, route_progress(s)) * total_miles) if corridor_stops else round(total_miles * (i + 1) / (len(chosen) + 1))
         lob_id = s.get("lob_id")
 
         # Real parking from forecast
@@ -774,6 +828,16 @@ def api_plan():
             hos_remaining < 2 or
             (s.get("mile_marker", 0) > hos_miles_left)
         )
+    # Flag stops that exceed the driver's fuel-safe range (e.g. no corridor
+    # stop exists close enough — sparse stop data — so the leg planner had to
+    # fall back to the nearest available stop beyond max_between_stops). This
+    # can't be silently hidden: the UI/AI should tell the driver this leg is
+    # further than their fuel range supports, not imply it's a safe plan.
+    prev_mile = 0
+    for s in stops_out:
+        leg_miles = s.get("mile_marker", 0) - prev_mile
+        s["fuel_break_required"] = leg_miles > max_between_stops
+        prev_mile = s.get("mile_marker", 0)
 
     # Build AI prompt with real stop data
     stops_text = "\n".join([
@@ -967,6 +1031,16 @@ def api_plan():
         "ai_plan":       ai_plan,
         "fuel_prices":   fuel_prices,
         "offers":        driver_offers or [],
+        "fuel_warning": (
+            f"No Pilot/Flying J stop is within your {round(max_between_stops)}-mile safe "
+            f"range at mile {out_of_range_legs[0]['from_mile']} — the closest available "
+            f"stop is at mile {out_of_range_legs[0]['nearest_stop_mile']}, "
+            f"{out_of_range_legs[0]['nearest_stop_mile'] - out_of_range_legs[0]['from_mile']} "
+            f"miles further than your fuel range supports. Consider fueling before "
+            f"departure or finding a closer non-Pilot option."
+            if out_of_range_legs else None
+        ),
+        "out_of_range_legs": out_of_range_legs,
         "journey_context": {
             "fuel_pct":      fuel_pct,
             "fuel_gal":      fuel_gal,

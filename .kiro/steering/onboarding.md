@@ -7,7 +7,7 @@ Claude, Kiro, Cursor, or a human — read this before making changes.
 
 ## Current State
 
-**Last updated:** 2026-08-17 09:50 ET — merged experimental into main (excluding Nova Sonic voice prototype); verified /api/driver, /api/plan (Nashville->Dallas), /api/ai chat, /api/competitors, /api/fleet all working post-merge
+**Last updated:** 2026-08-17 10:45 ET — fixed low-fuel stop planning bug (see CHANGELOG for details) — /api/plan now respects real fuel-safe range per leg and warns explicitly when no reachable stop exists, instead of silently showing a too-far stop
 
 ### Active server: `server.py` (Flask)
 - NOT app.py (Streamlit is legacy/backup)
