@@ -501,6 +501,30 @@ def geocode(place):
         pass
     return None
 
+def _build_range_warning(leg):
+    """
+    Build a driver-facing message for a leg that exceeds max_between_stops,
+    correctly attributing WHY — fuel range, legal HOS drive-time limit, or
+    the driver's own preferred break cadence — instead of always blaming
+    fuel (which was misleading: e.g. a full-tank trip hitting the legal
+    11-hour drive limit isn't a fuel problem at all).
+    """
+    gap = leg["nearest_stop_mile"] - leg["from_mile"]
+    reason = leg.get("reason", "fuel")
+    if reason == "hos":
+        cause = "your remaining legal drive time (Hours of Service) allows"
+    elif reason == "preference":
+        cause = "your preferred stop frequency allows"
+    else:
+        cause = "your fuel range supports"
+    return (
+        f"No Pilot/Flying J stop is within {leg['safe_range_mi']} miles at mile "
+        f"{leg['from_mile']} — the closest available stop is at mile "
+        f"{leg['nearest_stop_mile']}, {gap} miles further than {cause}. "
+        f"Consider fueling before departure or finding a closer non-Pilot option."
+    )
+
+
 # ── Trip Planner ──────────────────────────────────────────────────────────────
 @app.route("/api/plan", methods=["POST"])
 def api_plan():
@@ -516,6 +540,15 @@ def api_plan():
     cargo_type    = body.get("cargo_type", "general")  # general/refrigerated/hazmat/oversize/flatbed
     arrive_by     = body.get("arrive_by")              # "YYYY-MM-DD HH:MM" or None
     requested_stops = body.get("num_stops")            # explicit stop count from UI (overrides auto-calc)
+    # Driver's preferred max hours of continuous driving before a stop.
+    # Real drivers stop well before the legal 11h HOS limit or the fuel
+    # tank running dry — meal breaks, mandatory 30-min rest, stretching legs.
+    # Previously the planner used ONLY fuel range + full HOS remaining to
+    # decide stop spacing, which could place a first stop 600+ miles / 8+
+    # hours in on a full tank — technically "safe" by fuel/HOS math, but not
+    # how drivers actually plan a trip. Default 4h matches a common
+    # real-world break cadence; UI can override via `max_hours_between_stops`.
+    max_hours_between_stops = float(body.get("max_hours_between_stops", 4.0))
 
     # Geocode endpoints
     from_coords = geocode(from_) or (36.1627, -86.7816)
@@ -600,8 +633,12 @@ def api_plan():
     # much lower, which is how a "52mi of fuel" driver could see a first stop
     # placed at 101mi — the driver would run out before reaching it.)
     safe_range = max(fuel_range_mi * 0.85, 10)
+    # Driver's preferred break cadence, converted to miles at avg 55mph.
+    # This is a separate, usually-tighter constraint than fuel/HOS — it's
+    # about driver comfort/routine, not a hard mechanical or legal limit.
+    preferred_range = max(max_hours_between_stops * 55, 10)
     # num_stops_needed is finalized after HOS is resolved below; placeholder here
-    num_stops_needed = max(1, int(rough_miles / max(safe_range, 1)))
+    num_stops_needed = max(1, int(rough_miles / max(min(safe_range, preferred_range), 1)))
 
     if corridor_stops:
         flat, flon = from_coords
@@ -695,9 +732,28 @@ def api_plan():
     hos_remaining  = max(0, 11.0 - hos_hours_driven)
     hos_miles_left = round(hos_remaining * 55)  # avg 55 mph
 
-    # Refine num_stops_needed now that hos_hours_driven is resolved
+    # Refine num_stops_needed now that hos_hours_driven is resolved.
+    # max_between_stops is the tightest of three independent constraints:
+    #   - fuel range (mechanical: how far the tank can physically go)
+    #   - remaining legal drive time (HOS: how far the law allows)
+    #   - preferred break cadence (driver comfort: how far they actually
+    #     want to drive before stopping — usually the tightest of the three,
+    #     since real drivers stop for meals/rest well before hitting either
+    #     hard limit; this used to be missing entirely, which is how a full
+    #     tank + full HOS could produce a first stop 600+ miles in)
     hos_drive_miles = hos_remaining * 55
-    max_between_stops = min(safe_range, hos_drive_miles) if hos_drive_miles > 0 else safe_range
+    hard_limit = min(safe_range, hos_drive_miles) if hos_drive_miles > 0 else safe_range
+    max_between_stops = min(hard_limit, preferred_range)
+    # Track which constraint is actually binding, for accurate UI messaging
+    # (previously every "stop is further than expected" case was labeled
+    # a fuel issue even when HOS or the driver's own preference was the
+    # real reason).
+    if preferred_range <= hard_limit:
+        binding_constraint = "preference"
+    elif hos_drive_miles > 0 and hos_drive_miles < safe_range:
+        binding_constraint = "hos"
+    else:
+        binding_constraint = "fuel"
     num_stops_needed = max(1, int(rough_miles / max(max_between_stops, 1)) + (1 if rough_miles % max(max_between_stops, 1) > 50 else 0))
     # If UI explicitly requested a stop count, honour it (capped at available stops)
     if requested_stops:
@@ -724,6 +780,7 @@ def api_plan():
                         "from_mile": round(_last_mile),
                         "nearest_stop_mile": round(_mi),
                         "safe_range_mi": round(max_between_stops),
+                        "reason": binding_constraint,
                     })
                 _last_mile = _mi
         else:
@@ -758,6 +815,7 @@ def api_plan():
                         "from_mile": round(last_mile),
                         "nearest_stop_mile": round(stop_miles_from_origin(best)),
                         "safe_range_mi": round(max_between_stops),
+                        "reason": binding_constraint,
                     })
                 chosen.append(best)
                 last_mile = stop_miles_from_origin(best)
@@ -828,15 +886,19 @@ def api_plan():
             hos_remaining < 2 or
             (s.get("mile_marker", 0) > hos_miles_left)
         )
-    # Flag stops that exceed the driver's fuel-safe range (e.g. no corridor
-    # stop exists close enough — sparse stop data — so the leg planner had to
-    # fall back to the nearest available stop beyond max_between_stops). This
-    # can't be silently hidden: the UI/AI should tell the driver this leg is
-    # further than their fuel range supports, not imply it's a safe plan.
+    # Flag stops that exceed max_between_stops (e.g. no corridor stop exists
+    # close enough — sparse stop data — so the leg planner had to fall back
+    # to the nearest available stop beyond the safe distance). This can't be
+    # silently hidden: the UI/AI should tell the driver why this leg is
+    # longer than expected. Kept `fuel_break_required` as the flag name for
+    # frontend/backwards compatibility, but it's no longer assumed to always
+    # mean "fuel" — `range_break_reason` says which constraint actually did
+    # (or would) bind: "fuel", "hos", or "preference".
     prev_mile = 0
     for s in stops_out:
         leg_miles = s.get("mile_marker", 0) - prev_mile
         s["fuel_break_required"] = leg_miles > max_between_stops
+        s["range_break_reason"] = binding_constraint if leg_miles > max_between_stops else None
         prev_mile = s.get("mile_marker", 0)
 
     # Build AI prompt with real stop data
@@ -1032,13 +1094,7 @@ def api_plan():
         "fuel_prices":   fuel_prices,
         "offers":        driver_offers or [],
         "fuel_warning": (
-            f"No Pilot/Flying J stop is within your {round(max_between_stops)}-mile safe "
-            f"range at mile {out_of_range_legs[0]['from_mile']} — the closest available "
-            f"stop is at mile {out_of_range_legs[0]['nearest_stop_mile']}, "
-            f"{out_of_range_legs[0]['nearest_stop_mile'] - out_of_range_legs[0]['from_mile']} "
-            f"miles further than your fuel range supports. Consider fueling before "
-            f"departure or finding a closer non-Pilot option."
-            if out_of_range_legs else None
+            _build_range_warning(out_of_range_legs[0]) if out_of_range_legs else None
         ),
         "out_of_range_legs": out_of_range_legs,
         "journey_context": {
@@ -1048,6 +1104,7 @@ def api_plan():
             "cargo_type":    cargo_type,
             "arrive_by":     arrive_by,
             "num_stops_needed": num_stops_needed,
+            "max_hours_between_stops": max_hours_between_stops,
         },
     })
 

@@ -1,6 +1,6 @@
 # RoadIQ — Project Status
 
-_Last updated: 2026-08-17 13:10 ET — found and fixed real root cause of "taking too long" reports: Databricks connections were failing SSL verification (corporate proxy cert issue) and retrying internally for up to 900s before giving up. Added _tls_no_verify=True to the Databricks connection (the one client in this project missing an SSL bypass). All endpoints now consistently fast (3-16s), no hangs._
+_Last updated: 2026-08-17 14:05 ET — added `max_hours_between_stops` (default 4h) as a real, independent constraint on stop spacing alongside fuel range and HOS, so a full tank + fresh HOS no longer plans a first stop 600+ miles / 8+ hours in. New UI slider "🛑 Stop me every ___". Also fixed mislabeling: out-of-range legs are now attributed to the correct binding constraint (fuel/hos/preference) instead of always saying "fuel."_
 
 ## Current Build: All 8 Hackathon Features ✅ + Fleet Intelligence ✅
 

@@ -983,6 +983,19 @@ html, body {
       <span>Empty</span><span id="fuel-range-label">~280 mi range</span><span>Full</span>
     </div>
 
+    <!-- Preferred stop frequency — real drivers stop for breaks well before
+         the fuel tank runs dry or the legal HOS limit hits; without this,
+         a full tank + fresh HOS could plan a first stop 600+ miles in. -->
+    <div class="input-label" style="margin-bottom:5px;margin-top:12px">🛑 Stop me every</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+      <input type="range" id="stop-freq-slider" min="1" max="8" step="0.5" value="4"
+        style="flex:1;accent-color:#DC1730" oninput="updateStopFrequency(this.value)">
+      <span id="stop-freq-display" style="font-size:0.8rem;font-weight:800;color:#1c1c1e;min-width:36px">4h</span>
+    </div>
+    <div style="font-size:0.62rem;color:#aeaeb2;margin-bottom:4px">
+      Overrides fuel/HOS spacing if it's the tighter limit — real break habits, not just what's mechanically possible
+    </div>
+
     <!-- Arrival deadline -->
     <div class="adv-inputs-row" style="display:flex;gap:10px;margin-top:12px">
       <div style="flex:1">
@@ -1312,6 +1325,11 @@ function updateFuelLevel(val) {
   const rangeMi = Math.round(gal * TRUCK_MPG);
   document.getElementById('fuel-display').textContent = pct + '%';
   document.getElementById('fuel-range-label').textContent = `~${rangeMi} mi range`;
+}
+
+function updateStopFrequency(val) {
+  const hrs = parseFloat(val);
+  document.getElementById('stop-freq-display').textContent = (hrs % 1 === 0 ? hrs : hrs.toFixed(1)) + 'h';
 }
 
 // ── Cargo selector ────────────────────────────────────────────────────────────
@@ -1878,6 +1896,7 @@ function buildTrip() {
   const fuelPct = parseInt(document.getElementById('fuel-slider').value) || 50;
   const fuelGal = Math.round(TRUCK_TANK_GAL * fuelPct / 100);
   const fuelRangeMi = Math.round(fuelGal * TRUCK_MPG);
+  const maxHoursBetweenStops = parseFloat(document.getElementById('stop-freq-slider')?.value) || 4;
   const arriveTime = document.getElementById('arrive-by').value || null;
   const arriveDate = document.getElementById('arrive-date').value || null;
   const arriveBy = (arriveDate && arriveTime) ? `${arriveDate} ${arriveTime}`
@@ -1898,6 +1917,7 @@ function buildTrip() {
     body: JSON.stringify({
       from, to, prefs, hos_hours_driven: hosVal,
       fuel_pct: fuelPct, fuel_gal: fuelGal, fuel_range_mi: fuelRangeMi,
+      max_hours_between_stops: maxHoursBetweenStops,
       cargo_type: cargo, arrive_by: arriveBy,
     })
   })
@@ -2034,7 +2054,12 @@ function renderTrip(data) {
     const pills = [];
     if (stop.visited_before) pills.push(`⭐ You've stopped here`);
     if (stop.hos_break_required) pills.push(`⏱️ Rest break here`);
-    if (stop.fuel_break_required) pills.push(`⚠️ Beyond your fuel range`);
+    if (stop.fuel_break_required) {
+      const reasonLabel = stop.range_break_reason === 'hos' ? '⚠️ Beyond your legal drive-time limit'
+                         : stop.range_break_reason === 'preference' ? '⚠️ Beyond your preferred stop frequency'
+                         : '⚠️ Beyond your fuel range';
+      pills.push(reasonLabel);
+    }
     if (stop.diesel_price) pills.push(`⛽ $${stop.diesel_price.toFixed(3)}/gal`);
     if (stop.parking_pct) pills.push(`🅿️ ${stop.parking_pct}% parking`);
     if (stop.shower_wait != null) pills.push(`🚿 ${stop.shower_wait} min wait`);
