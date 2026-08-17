@@ -7,7 +7,7 @@ Claude, Kiro, Cursor, or a human — read this before making changes.
 
 ## Current State
 
-**Last updated:** 2026-08-05 ET (saved scripts/test_celonis_dim_loyalty_id_filter.py — confirmed dim_loyalty_id still doesn't filter load_data_driver_info)
+**Last updated:** 2026-08-17 09:50 ET — merged experimental into main (excluding Nova Sonic voice prototype); verified /api/driver, /api/plan (Nashville->Dallas), /api/ai chat, /api/competitors, /api/fleet all working post-merge
 
 ### Active server: `server.py` (Flask)
 - NOT app.py (Streamlit is legacy/backup)
@@ -151,7 +151,8 @@ Run `scripts/discover_celonis_tools.py` to re-list live. 3 tools currently expos
 | GET | `/api/route` | — | OSRM route coords + stop pins |
 | POST | `/api/plan` | `{from, to, prefs, hos_hours_driven}` | `{stops, all_stops, route_coords, from_coords, to_coords, itinerary, savings_detail, hos, offers}` |
 | POST | `/api/ai` | `{mode: "plan"\|"chat", message}` | `{text, source}` + optional `preference_update: {food_preference, shower_preference, celonis_synced}` when mode=chat and a preference was detected. **mode=chat is now grounded** — see "Chat tab grounding fix" section below. |
-| GET | `/api/fleet` | — | 15 drivers with loyalty tier, fuel_pct, fuel_miles, route |
+| GET | `/api/fleet` | — | 15 drivers with loyalty tier, fuel_pct, fuel_miles, route, HOS intel (driven/remaining), last_stop (name + is_pilot), missed_savings, pilot_streak |
+| POST | `/api/fleet/suggest` | `{load_id, origin, destination, miles}` | `{suggestions: [{driver_id, name, score, tier, hos_remaining, fuel_miles, last_stop, pilot_streak, reason, pilot_savings_est}]}` — top 5 ranked drivers. Score: HOS headroom 30pts + fuel range 25pts + Pilot alignment 20pts (overdue)/10pts (loyal streak) + loyalty tier 10pts. |
 | POST | `/api/stop_advice` | `{stop, from, to, prefs, hos_hours_driven}` | `{advice}` — GOOD STOP or WORTH SKIPPING verdict |
 | GET | `/api/maintenance` | `?driver_id=N` (optional) | Maintenance data: DEF%, tire PSI%, oil life%, miles to service, alerts array |
 | POST | `/api/poi` | `{lat, lon, radius_m}` | Nearby POIs by category (food/cafe/gym/park/library/cinema/mall/bowling/laundry/pharmacy). Falls back to demo data if Overpass unreachable. |
@@ -203,9 +204,9 @@ in the request body), or `"default"` (neither available, defaults to 0h driven).
 ### 5-Tab Navigation
 1. **Home** — Proactive alert, fuel bar, quick links, loyalty card, deals
 2. **Plan Trip** — Origin/destination input, HOS slider, prefs chips → SVG map + itinerary + stop picker + weather ribbon + **3-way stop filter** (⭐ Optimized / 🗺️ All Stops / 🆚 Competitors)
-3. **Fleet** — 15-driver fleet manager with KPI cards, fuel risk badges, loyalty tiers; fleet savings banner (Pilot vs national avg diesel); load assignment board (5 loads, assign driver → instant green tag)
-4. **RoadIQ** — AI journey plan tab (legacy `/api/ai` endpoint)
-5. **Chat** — Free-form Bedrock chat with quick prompts
+3. **Fleet** — 15-driver roster with KPI cards, fuel risk badges, loyalty tiers; fleet savings banner (Pilot vs national avg diesel); **fleet insights bar** (missed Pilot stops, est. missed $savings, on-streak count); driver rows with HOS/last-stop/streak intel badges; load board with **⚡ Smart Assign** AI-ranked suggestions; driver push notification on assign
+4. **RoadIQ** — AI journey plan tab. **Fully dynamic** (rewritten 2026-08-05) — `updateRoadIQTab(stop, from, to)` populates from plan data; pre-trip shows "Plan a trip" CTA; post-trip shows route title, badges, and first stop card; "View My Plan →" goes to Plan Trip tab results (not stale RoadIQ screen)
+5. **Chat** — Free-form Bedrock chat grounded in real corridor stops via `_build_chat_stops_context()`; route-aware since 2026-08-05
 
 ### Weather Along Route — implementation notes
 - **Endpoint:** `POST /api/weather` — called by `buildTrip()` in frontend after `/api/plan` resolves
@@ -367,6 +368,63 @@ Five features closing the gap between "stop recommendation tool" and "AI-powered
 - **Frontend elements:** `#elite-progress-card` (gold-bordered card), `#elite-fill` (gold gradient bar, transitions to width%), `#elite-gal-done` / `#elite-gal-left` labels. Hidden if `total_gallons === 0`.
 - **States:** in-progress (red "N gal to Elite") vs achieved (green "✅ Elite achieved!")
 - **Loyalty card subtitle** dynamically shows "N gal away from Elite" while not yet achieved; switches to "2× points on every fill-up" once achieved
+
+### Fleet Intelligence — implementation notes (added 2026-08-05)
+Driver assignment is now HOS/location-aware rather than random. Two new demo story screens:
+
+**Screen 1 — Fleet Manager view:**
+- **Insights bar** (`#fleet-insights-bar`, 3 cards): Missed Pilot Stops (count of drivers whose last stop was a competitor), Est. Missed Savings ($ sum of `missed_savings` across those drivers), On Pilot Streak (count with `pilot_streak > 0`)
+- **Driver rows** now show three intel badges: HOS badge (green ≥4h, amber 2–4h, red <2h), last stop badge (🅿️ Pilot ✅ or competitor name ❌), Pilot streak badge (🔥 Nstreak)
+- **Smart Assign button** replaces the old dropdown — one per unassigned load on the load board
+
+**Screen 2 — Smart Assign modal:**
+- `openSmartAssign(loadId)` calls `POST /api/fleet/suggest` with the load's origin/destination/miles
+- `renderSuggestions(loadId, suggestions)` draws a `.suggest-sheet` overlay with ranked driver cards
+- Each `.suggest-card` shows: rank badge, driver name, HOS, fuel miles, last stop, streak, score pill, and a `reason` sentence from the server
+- `confirmAssign(loadId, driverId, driverName)` → `POST /api/loads/assign` → closes modal → shows push notification
+
+**Screen 3 — Driver push notification:**
+- `showDriverPushNotification(driverName)` slides in a `.driver-push-banner` from the top
+- Banner shows "✅ Load Assigned — You've been assigned a new load, [Name]" + "View Optimized Route →" CTA
+- "View Optimized Route →" calls `viewAssignedRoute()` which calls `buildTrip()` with the load's origin/destination
+- Auto-dismisses after 8 seconds; can be closed with ✕
+
+**`_driver_intel(driver_id)` — deterministic synthetic intel (server.py):**
+```python
+def _driver_intel(driver_id):
+    h = int(hashlib.md5(str(driver_id * 31 + 7).encode()).hexdigest(), 16)
+    hos_driven = round((h % 90) / 10, 1)        # 0.0 – 9.0h
+    hos_remaining = max(0, round(11.0 - hos_driven, 1))
+    pilot_last = (h % 10) >= 3                   # 70% chance last stop was Pilot
+    missed = 0 if pilot_last else 12 + (h % 17)  # $12–$28 missed savings
+    streak = (h >> 4) % 8 if pilot_last else 0   # 0–7 consecutive Pilot stops
+    return {hos_driven, hos_remaining, last_stop, last_stop_pilot, missed_savings, pilot_streak}
+```
+
+**`/api/fleet/suggest` scoring:**
+```
+score = HOS headroom pts (0–30) + fuel range pts (0–25) + Pilot alignment pts (0–20) + loyalty tier pts (0–10)
+pilot_savings_est = load_miles / 6.5 * 0.097   (gallons × per-gal fleet savings)
+```
+
+### RoadIQ tab — dynamic architecture (rewrite 2026-08-05)
+The `#screen-roadiq` tab was entirely hardcoded. Now fully dynamic.
+
+**Key element IDs:**
+- `#roadiq-route-title` — "Plan a trip to get your AI journey plan" pre-trip; "Nashville → Dallas" post-trip
+- `#roadiq-badge-row` — hidden pre-trip; shows fuel badge, tier badge, miles badge post-trip
+- `#roadiq-badge-fuel`, `#roadiq-badge-miles` — populated from plan data
+- `#roadiq-stop-card` — hidden pre-trip; shows after plan
+- `#roadiq-stop-name`, `#roadiq-stop-city`, `#roadiq-stop-pills` — populated from first chosen stop
+- `#roadiq-no-plan` — the "Plan My Trip" CTA, hidden after a plan is active
+
+**`updateRoadIQTab(stop, from, to)` — called from two places:**
+1. `updateHomeAlert(data)` — right after `buildTrip()` resolves with plan data
+2. Page-load localStorage restore — so RoadIQ tab is correct on refresh without re-planning
+
+**"View My Plan →" CTA fix:**
+- Was: `switchTab('roadiq')` — went to the stale static screen
+- Now: `switchTab('plan'); scrollIntoView('#plan-results')` — scrolls directly to itinerary
 
 ### What is NOT yet built (next opportunities)
 - **Weigh station locations** — static JSON from FHWA (discussed, not built). Would show as pins on SVG map or listed in itinerary for the corridor.

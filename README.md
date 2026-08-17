@@ -13,7 +13,7 @@ cp .env.example .env
 
 # Run the server
 python server.py
-# → http://localhost:5000
+# → http://localhost:5002
 ```
 
 ## Architecture

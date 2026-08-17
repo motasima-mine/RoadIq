@@ -48,6 +48,18 @@
     "fleet_fuel_agreement": true
   },
   {
+    "id": "jackson_198",
+    "name": "Pilot Jackson #198",
+    "city": "Jackson, TN",
+    "lat": 35.6145,
+    "lon": -88.8139,
+    "parking_forecast_pct": 74,
+    "shower_wait_min": 7,
+    "food_available": "Subway, Taco Bell",
+    "diesel_price_advantage": true,
+    "fleet_fuel_agreement": true
+  },
+  {
     "id": "memphis_412",
     "name": "Pilot Memphis #412",
     "city": "Memphis, TN",
@@ -132,6 +144,54 @@
     "fleet_fuel_agreement": true
   },
   {
+    "id": "murfreesboro_312",
+    "name": "Pilot Murfreesboro #312",
+    "city": "Murfreesboro, TN",
+    "lat": 35.847,
+    "lon": -86.390,
+    "parking_forecast_pct": 81,
+    "shower_wait_min": 6,
+    "food_available": "Subway, McDonald's",
+    "diesel_price_advantage": true,
+    "fleet_fuel_agreement": true
+  },
+  {
+    "id": "monteagle_189",
+    "name": "Pilot Monteagle #189",
+    "city": "Monteagle, TN",
+    "lat": 35.240,
+    "lon": -85.839,
+    "parking_forecast_pct": 69,
+    "shower_wait_min": 11,
+    "food_available": "Arby's, Subway",
+    "diesel_price_advantage": true,
+    "fleet_fuel_agreement": true
+  },
+  {
+    "id": "chattanooga_427",
+    "name": "Pilot Chattanooga #427",
+    "city": "Chattanooga, TN",
+    "lat": 35.046,
+    "lon": -85.310,
+    "parking_forecast_pct": 74,
+    "shower_wait_min": 9,
+    "food_available": "Wendy's, Subway",
+    "diesel_price_advantage": false,
+    "fleet_fuel_agreement": true
+  },
+  {
+    "id": "dalton_203",
+    "name": "Pilot Dalton #203",
+    "city": "Dalton, GA",
+    "lat": 34.770,
+    "lon": -84.970,
+    "parking_forecast_pct": 58,
+    "shower_wait_min": 14,
+    "food_available": "McDonald's, Subway",
+    "diesel_price_advantage": false,
+    "fleet_fuel_agreement": true
+  },
+  {
     "id": "nashville_south_444",
     "name": "Pilot Nashville South #444",
     "city": "Nashville, TN",
@@ -141,6 +201,78 @@
     "shower_wait_min": 10,
     "food_available": "Subway, Starbucks",
     "diesel_price_advantage": true,
+    "fleet_fuel_agreement": true
+  },
+  {
+    "id": "macon_334",
+    "name": "Pilot Macon #334",
+    "city": "Macon, GA",
+    "lat": 32.840,
+    "lon": -83.633,
+    "parking_forecast_pct": 77,
+    "shower_wait_min": 8,
+    "food_available": "Subway, Wendy's",
+    "diesel_price_advantage": true,
+    "fleet_fuel_agreement": true
+  },
+  {
+    "id": "valdosta_219",
+    "name": "Pilot Valdosta #219",
+    "city": "Valdosta, GA",
+    "lat": 30.833,
+    "lon": -83.278,
+    "parking_forecast_pct": 65,
+    "shower_wait_min": 12,
+    "food_available": "McDonald's, Subway",
+    "diesel_price_advantage": true,
+    "fleet_fuel_agreement": true
+  },
+  {
+    "id": "lake_city_fl_147",
+    "name": "Pilot Lake City #147",
+    "city": "Lake City, FL",
+    "lat": 30.190,
+    "lon": -82.639,
+    "parking_forecast_pct": 82,
+    "shower_wait_min": 5,
+    "food_available": "Arby's, Subway",
+    "diesel_price_advantage": true,
+    "fleet_fuel_agreement": true
+  },
+  {
+    "id": "ocala_fl_291",
+    "name": "Pilot Ocala #291",
+    "city": "Ocala, FL",
+    "lat": 29.187,
+    "lon": -82.130,
+    "parking_forecast_pct": 70,
+    "shower_wait_min": 9,
+    "food_available": "Burger King, Subway",
+    "diesel_price_advantage": false,
+    "fleet_fuel_agreement": true
+  },
+  {
+    "id": "orlando_fl_388",
+    "name": "Pilot Orlando #388",
+    "city": "Orlando, FL",
+    "lat": 28.538,
+    "lon": -81.379,
+    "parking_forecast_pct": 59,
+    "shower_wait_min": 18,
+    "food_available": "Denny's, Subway",
+    "diesel_price_advantage": true,
+    "fleet_fuel_agreement": true
+  },
+  {
+    "id": "fort_pierce_fl_162",
+    "name": "Pilot Fort Pierce #162",
+    "city": "Fort Pierce, FL",
+    "lat": 27.447,
+    "lon": -80.326,
+    "parking_forecast_pct": 44,
+    "shower_wait_min": 22,
+    "food_available": "McDonald's, Subway",
+    "diesel_price_advantage": false,
     "fleet_fuel_agreement": true
   },
   {

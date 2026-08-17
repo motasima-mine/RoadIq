@@ -1,6 +1,7 @@
 import json
 import os
 import urllib3
+
 import boto3
 import requests
 from flask import Flask, jsonify, request, send_from_directory
@@ -37,6 +38,7 @@ DEMO_STOP   = next(l for l in LOCATIONS if l["id"] == "knoxville_198")
 # the Celonis write is attempted in parallel so real production data (once
 # the read-side bug is fixed) will already be seeded correctly.
 _driver_preferences_cache = {}
+_last_plan = {"from": None, "to": None}  # updated every /api/plan call
 
 # ── Bedrock ───────────────────────────────────────────────────────────────────
 def _bedrock():
@@ -54,41 +56,84 @@ def _bedrock():
         ),
     )
 
-_chat_stops_cache = {"text": None, "ts": 0}
+_chat_stops_cache = {"text": None, "ts": 0, "route_key": None}
 
 
 def _build_chat_stops_context():
     """
-    Build a text block describing real Pilot/FJ stops on the demo driver's
-    route, including real food offerings from PFJ 360 — for grounding the
-    Chat tab (mode="chat" in /api/ai). Uses the same data sources /api/plan
-    uses (Databricks corridor stops + PFJ 360 food offerings), so chat can
-    answer food/amenity questions instead of guessing with zero context.
-
-    Cached for 5 minutes since this doesn't change per-message.
+    Build a text block of Pilot stops on the active route for Chat grounding.
+    Uses _last_plan coords so chat always reflects the current planned trip.
+    Cache busts when route changes.
     """
     now = __import__("time").time()
-    if _chat_stops_cache["text"] and now - _chat_stops_cache["ts"] < 300:
+    route_key = f"{_last_plan.get('from')}|{_last_plan.get('to')}"
+    if (_chat_stops_cache["text"]
+            and now - _chat_stops_cache["ts"] < 300
+            and _chat_stops_cache["route_key"] == route_key):
         return _chat_stops_cache["text"]
 
     lines = []
+    lat_min = lat_max = lon_min = lon_max = None
+    active_from = _last_plan.get("from") or ""
+    active_to   = _last_plan.get("to") or ""
+
+    # Use stops already computed by /api/plan when available (most accurate)
+    plan_stops = _last_plan.get("stops") or []
+    if plan_stops:
+        corridor_locs = plan_stops
+    else:
+        # Fallback: bbox filter from LOCATIONS
+        def _city_coords(city_str):
+            city_lower = city_str.lower()
+            for loc in LOCATIONS:
+                if loc["city"].lower() in city_lower or city_lower in loc["city"].lower():
+                    return loc["lat"], loc["lon"]
+            return None
+        _from_coords = _city_coords(active_from)
+        _to_coords   = _city_coords(active_to)
+        corridor_locs = []
+        if _from_coords and _to_coords:
+            lat_min = min(_from_coords[0], _to_coords[0]) - 1.0
+            lat_max = max(_from_coords[0], _to_coords[0]) + 1.0
+            lon_min = min(_from_coords[1], _to_coords[1]) - 1.0
+            lon_max = max(_from_coords[1], _to_coords[1]) + 1.0
+            corridor_locs = [l for l in LOCATIONS
+                             if lat_min <= l["lat"] <= lat_max and lon_min <= l["lon"] <= lon_max]
+        if not corridor_locs:
+            corridor_locs = LOCATIONS
+
+    for l in corridor_locs[:8]:
+        details = []
+        if l.get("food_available"):
+            details.append(f"Food: {l['food_available']}")
+        if l.get("parking_forecast_pct") is not None:
+            details.append(f"Parking: {l['parking_forecast_pct']}% available")
+        if l.get("shower_wait_min") is not None:
+            details.append(f"Shower wait: {l['shower_wait_min']} min")
+        line = f"- {l['name']} ({l['city']})"
+        if details:
+            line += " — " + "; ".join(details)
+        lines.append(line)
+
+    # Also try Databricks with the actual route bbox (non-blocking enhancement)
     try:
         from databricks_client import (
             get_stops_in_corridor, get_pfj360_food_offerings,
             get_parking_availability, get_shower_wait,
         )
-        # Nashville -> Atlanta corridor (demo driver's route)
-        stops = get_stops_in_corridor(33.0, 37.0, -87.0, -83.0, driver_id=DEMO_DRIVER["id"])
-        if not stops:
-            stops = get_stops_in_corridor(-90, 90, -180, 180, driver_id=DEMO_DRIVER["id"])
-
-        if stops:
-            lob_ids = [s["lob_id"] for s in stops if s.get("lob_id") is not None]
+        if lat_min is not None:
+            db_stops = get_stops_in_corridor(lat_min, lat_max, lon_min, lon_max, driver_id=DEMO_DRIVER["id"])
+        else:
+            db_stops = []
+        # Only use Databricks stops if they have real (non-synthetic) coords
+        valid_db = [s for s in db_stops if s.get("lat") and 24 <= s["lat"] <= 50 and -125 <= s.get("lon", 0) <= -65]
+        if valid_db:
+            lob_ids = [s["lob_id"] for s in valid_db if s.get("lob_id") is not None]
             food_map = get_pfj360_food_offerings(lob_ids) or {}
             parking_map = get_parking_availability(lob_ids) or {}
             shower_map = get_shower_wait(lob_ids) or {}
-
-            for s in stops[:8]:  # cap to keep prompt small
+            db_lines = []
+            for s in valid_db[:8]:
                 lob_id = s.get("lob_id")
                 food = food_map.get(lob_id)
                 park = parking_map.get(lob_id, {}).get("parking_pct_available")
@@ -105,42 +150,53 @@ def _build_chat_stops_context():
                     details.append("Drivers' lounge")
                 if details:
                     line += " — " + "; ".join(details)
-                lines.append(line)
+                db_lines.append(line)
+            if db_lines:
+                lines = db_lines  # prefer Databricks if valid
     except Exception as e:
         print(f"[chat_context] Databricks stop lookup failed: {e}")
-
-    # Fallback to local JSON if Databricks gave us nothing usable
-    if not lines:
-        for l in LOCATIONS:
-            details = []
-            if l.get("food_available"):
-                details.append(f"Food: {l['food_available']}")
-            if l.get("parking_forecast_pct") is not None:
-                details.append(f"Parking: {l['parking_forecast_pct']}% available")
-            if l.get("shower_wait_min") is not None:
-                details.append(f"Shower wait: {l['shower_wait_min']} min")
-            line = f"- {l['name']} ({l['city']})"
-            if details:
-                line += " — " + "; ".join(details)
-            lines.append(line)
 
     text = "\n".join(lines) if lines else "  (no stop data available)"
     _chat_stops_cache["text"] = text
     _chat_stops_cache["ts"] = now
+    _chat_stops_cache["route_key"] = route_key
     return text
 
 
-def ask_ai(prompt_text, max_tokens=450):
+def ask_ai(prompt_text, max_tokens=450, model_id=None):
+    """
+    Call Bedrock Converse. Model selection (benchmarked 2026-08-05, see
+    scripts/benchmark_models.py):
+      - Default (chat/quick replies, driver is waiting): amazon.nova-pro-v1:0
+        — matched Nova Lite's latency (~0.8s) but used FEWER output tokens
+        and gave noticeably better recommendations in side-by-side testing
+        (e.g. correctly weighing "cheapest fuel" vs "has the food I asked
+        about" instead of just answering the first part of a question).
+      - /api/plan itinerary (ai_plan, one-shot per trip build, not per
+        keystroke — latency less felt): pass model_id=BEDROCK_PLAN_MODEL_ID
+        env var. Intended to be us.anthropic.claude-haiku-4-5-20251001-v1:0
+        for stronger trip reasoning, but that's currently blocked — this
+        AWS account hasn't submitted Anthropic's required "model use case"
+        form in the Bedrock console (ResourceNotFoundException on every
+        Claude call, confirmed 2026-08-05). That's an account-admin action,
+        not a code fix. Defaults to amazon.nova-pro-v1:0 (same as chat) for
+        now; swap BEDROCK_PLAN_MODEL_ID to the Claude inference profile ID
+        once that form clears.
+      - Claude/newer-Nova model IDs require the "us." region-prefixed
+        inference profile ID for on-demand invocation, not the raw model ID
+        (confirmed via ValidationException testing) — always use the
+        prefixed form for those, once Claude access is actually approved.
+    """
     try:
-        model_id = os.getenv("BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0")
+        resolved_model_id = model_id or os.getenv("BEDROCK_MODEL_ID", "amazon.nova-pro-v1:0")
         r = _bedrock().converse(
-            modelId=model_id,
+            modelId=resolved_model_id,
             messages=[{"role": "user", "content": [{"text": prompt_text}]}],
             inferenceConfig={"maxTokens": max_tokens, "temperature": 0.7},
         )
         return r["output"]["message"]["content"][0]["text"]
     except Exception as e:
-        print(f"[bedrock] AI call failed: {e}")
+        print(f"[bedrock] AI call failed (model={model_id or 'default'}): {e}")
         return None  # caller handles fallback
 
 
@@ -343,15 +399,63 @@ def api_ai():
             pref_context = "Known driver preferences from earlier chat: " + "; ".join(
                 f"{k.replace('_', ' ')}: {v}" for k, v in learned.items()
             ) + ". "
+        active_from = _last_plan.get("from") or DEMO_DRIVER.get("current_location", "Nashville, TN")
+        active_to   = _last_plan.get("to")   or DEMO_DRIVER.get("destination", "Atlanta, GA")
+        # Build competitor context for fuel-savings questions
+        try:
+            from databricks_client import get_fuel_prices
+            _fp = get_fuel_prices()
+            pilot_fleet = _fp.get("avg_net_price") or 3.448
+            pilot_retail = _fp.get("avg_gross_price") or 3.545
+        except Exception:
+            pilot_fleet, pilot_retail = 3.448, 3.545
+        # Pull live competitor list based on current corridor
+        dest_lower = active_to.lower()
+        frm_lower  = active_from.lower()
+        if any(k in dest_lower for k in ["miami","orlando","tampa","jacksonville","florida"," fl"]):
+            comp_names = "Love's Valdosta GA ($%.3f/gal), TA Petro Lake City FL ($%.3f/gal), BP Orlando FL ($%.3f/gal)" % (pilot_retail+0.09, pilot_retail+0.13, pilot_retail+0.06)
+        elif any(k in dest_lower for k in ["atlanta"," ga"]):
+            comp_names = "Love's Murfreesboro TN ($%.3f/gal), TA Petro Chattanooga TN ($%.3f/gal), BP Calhoun GA ($%.3f/gal)" % (pilot_retail+0.08, pilot_retail+0.12, pilot_retail+0.05)
+        elif any(k in dest_lower for k in ["chicago","illinois"," il","indianapolis"]):
+            comp_names = "Love's Gary IN ($%.3f/gal), TA Petro Indianapolis IN ($%.3f/gal), BP Bowling Green KY ($%.3f/gal)" % (pilot_retail+0.09, pilot_retail+0.11, pilot_retail+0.06)
+        else:
+            comp_names = "Love's Jackson TN ($%.3f/gal), TA Petro Memphis TN ($%.3f/gal), BP Little Rock AR ($%.3f/gal)" % (pilot_retail+0.08, pilot_retail+0.12, pilot_retail+0.05)
+        competitor_context = (f"Competitor fuel prices on this corridor: {comp_names}. "
+                              f"Pilot fleet price: ${pilot_fleet:.3f}/gal (saves ~${pilot_retail-pilot_fleet:.3f}/gal vs retail, "
+                              f"~${pilot_retail+0.09-pilot_fleet:.3f}/gal vs Love's avg).")
+
+        # Loyalty / points context — Elite earns 2x pts/gal (matches
+        # points_multiplier logic elsewhere in this file and the fallback
+        # plan text below — Elite is the only tier label used app-wide,
+        # "Gold" and "4x" were an inconsistency, not a real second tier).
+        plan_stops_list = _last_plan.get("stops") or []
+        stop_count = len(plan_stops_list)
+        trip_gal = stop_count * 100   # ~100 gal per semi fill
+        trip_points = trip_gal * 2    # Elite = 2x pts/gal
+        loyalty_context = (
+            f"LOYALTY FACTS (read back verbatim, do not recalculate):\n"
+            f"- Currently earning: {trip_points} points this trip ({stop_count} stops × ~100 gal × 2 pts/gal, Elite tier).\n"
+            f"PARKING BOOKING: tap the 'Go' button on any stop card to reserve → PFJ-XXXXX confirmation code.\n"
+            f"STOP FREQUENCY: at 55 mph avg, every 2 hrs ≈ 110 miles, every 3 hrs ≈ 165 miles."
+        )
+
         prompt = (
-            f"You are RoadIQ, Pilot Flying J's AI driver assistant. "
-            f"Driver is James Okafor, Elite member (Push for Points), Nashville→Atlanta, fuel risk at 140mi remaining. "
+            f"You are RoadIQ, Pilot Flying J's AI driver assistant. Be helpful, specific, and friendly. "
+            f"Driver is James Okafor, Elite MyRewards member. "
+            f"Current route: {active_from} → {active_to}. "
             f"{pref_context}\n"
-            f"Real Pilot/Flying J stops on this route, with amenities and food options:\n{stops_context}\n\n"
-            f"Answer the driver's question using ONLY the stop data above — never invent locations, "
-            f"prices, or food options not listed. If the answer isn't in the data provided, say so "
-            f"honestly and suggest what you can help with instead. "
-            f"Answer helpfully and concisely (under 80 words): {user_msg}"
+            f"Pilot stops on this route with food/amenities:\n{stops_context}\n\n"
+            f"{competitor_context}\n\n"
+            f"{loyalty_context}\n\n"
+            f"Guidelines:\n"
+            f"- Food questions: suggest the closest available option even if not exact match (e.g. wings → closest hot food available)\n"
+            f"- Parking booking: tell driver to tap 'Go' on the stop card to reserve, mention the PFJ confirmation code\n"
+            f"- Stop frequency: if driver asks for stops every N hours, calculate based on ~55mph avg and list stops accordingly\n"
+            f"- Points questions: use the loyalty data above to give specific numbers\n"
+            f"- Off-topic questions (weather trivia, stocks, politics, non-driving topics): politely decline and redirect to route help\n"
+            f"- Competitor locations: never give directions to Love's, TA, Petro, BP, or any non-Pilot stop — redirect to Pilot options and mention the price advantage\n"
+            f"- Never invent stop names, prices, or food options not listed above\n"
+            f"Answer concisely (under 90 words): {user_msg}"
         )
 
     result = ask_ai(prompt)
@@ -411,6 +515,7 @@ def api_plan():
     fuel_range_mi = body.get("fuel_range_mi", 490)     # miles to empty
     cargo_type    = body.get("cargo_type", "general")  # general/refrigerated/hazmat/oversize/flatbed
     arrive_by     = body.get("arrive_by")              # "YYYY-MM-DD HH:MM" or None
+    requested_stops = body.get("num_stops")            # explicit stop count from UI (overrides auto-calc)
 
     # Geocode endpoints
     from_coords = geocode(from_) or (36.1627, -86.7816)
@@ -452,33 +557,34 @@ def api_plan():
     except Exception as e:
         print(f"[plan] databricks unavailable: {e}")
 
-    # Fall back to local locations.json
-    if not corridor_stops:
-        def _loc_to_stop(l):
-            return {
-                "name": l["name"],
-                "city": l["city"],
-                "lat": l["lat"],
-                "lon": l["lon"],
-                "has_lounge": True,
-                "has_idle_air": False,
-                "has_mobile_fuel": False,
-                "is_pfj": True,
-                "in_network": True,
-                "brand": "PILOT",
-                "diesel_brand": "PILOT",
-                "interstate": "",
-                "visited_before": False,
-                "parking_forecast_pct": l.get("parking_forecast_pct", 75),
-                "shower_wait_min": l.get("shower_wait_min", 10),
-                "food_available": l.get("food_available", ""),
-                "fleet_fuel_agreement": l.get("fleet_fuel_agreement", False),
-            }
-        # Try corridor bbox first; if still empty, use all local stops
-        corridor_stops = [_loc_to_stop(l) for l in LOCATIONS
-                          if (min_lat <= l["lat"] <= max_lat and min_lon <= l["lon"] <= max_lon)]
-        if not corridor_stops:
-            corridor_stops = [_loc_to_stop(l) for l in LOCATIONS]
+    # Always merge local locations.json — Databricks sandbox only has a subset
+    def _loc_to_stop(l):
+        return {
+            "name": l["name"],
+            "city": l["city"],
+            "lat": l["lat"],
+            "lon": l["lon"],
+            "has_lounge": True,
+            "has_idle_air": False,
+            "has_mobile_fuel": False,
+            "is_pfj": True,
+            "in_network": True,
+            "brand": "PILOT",
+            "diesel_brand": "PILOT",
+            "interstate": "",
+            "visited_before": False,
+            "parking_forecast_pct": l.get("parking_forecast_pct", 75),
+            "shower_wait_min": l.get("shower_wait_min", 10),
+            "food_available": l.get("food_available", ""),
+            "fleet_fuel_agreement": l.get("fleet_fuel_agreement", False),
+        }
+    local_stops = [_loc_to_stop(l) for l in LOCATIONS]
+    if corridor_stops:
+        # Merge: add local stops not already in Databricks results (de-dup by name)
+        existing_names = {s["name"] for s in corridor_stops}
+        corridor_stops = corridor_stops + [s for s in local_stops if s["name"] not in existing_names]
+    else:
+        corridor_stops = local_stops
 
     # Build optimized stop list — pick 1-3 stops spaced along route
     # Determine number of stops needed based on fuel range and route distance
@@ -513,14 +619,20 @@ def api_plan():
             # cross product magnitude / line length
             return abs((slon - flon)*dx - (slat - flat)*dy) / (length_sq ** 0.5)
 
-        # Max deviation: 0.5° ≈ 35 miles either side of the straight-line corridor
-        MAX_PERP_DEG = 0.5
+        # Scale tolerance with route length — long diagonal routes need wider corridor
+        route_len_deg = (length_sq ** 0.5)
+        MAX_PERP_DEG = min(2.0, max(0.5, route_len_deg * 0.20))  # ~35mi min, ~140mi max
 
-        # Drop stops behind origin (t < 0.05) or too far off the corridor
+        # Drop stops behind origin (t < 0.05), past 90% of route (no point stopping near destination),
+        # or too far off the corridor
         corridor_stops = [
             s for s in corridor_stops
-            if route_progress(s) >= 0.05 and perp_distance_deg(s) <= MAX_PERP_DEG
+            if 0.05 <= route_progress(s) <= 0.90 and perp_distance_deg(s) <= MAX_PERP_DEG
         ]
+
+        # If all stops failed the corridor filter, use local stops unfiltered
+        if not corridor_stops:
+            corridor_stops = local_stops
 
         # Sort by position along route first, then quality tier
         corridor_stops.sort(key=lambda s: (
@@ -529,7 +641,7 @@ def api_plan():
             not s.get("in_network", False),
             not s.get("visited_before", False),
         ))
-        chosen = corridor_stops[:num_stops_needed]
+        chosen = corridor_stops[:num_stops_needed]  # refined below after HOS
     else:
         chosen = []
 
@@ -578,10 +690,29 @@ def api_plan():
     hos_drive_miles = hos_remaining * 55
     max_between_stops = min(safe_range, hos_drive_miles) if hos_drive_miles > 0 else safe_range
     num_stops_needed = max(1, int(rough_miles / max(max_between_stops, 1)) + (1 if rough_miles % max(max_between_stops, 1) > 50 else 0))
+    # If UI explicitly requested a stop count, honour it (capped at available stops)
+    if requested_stops:
+        num_stops_needed = max(num_stops_needed, int(requested_stops))
     num_stops_needed = max(1, min(num_stops_needed, len(corridor_stops) if corridor_stops else 1))
-    # Re-slice chosen with the refined count
+    # Re-slice chosen with the refined count, spread evenly across the route
     if corridor_stops:
-        chosen = corridor_stops[:num_stops_needed]
+        if num_stops_needed >= len(corridor_stops):
+            chosen = corridor_stops
+        elif num_stops_needed == 1:
+            # Pick the stop closest to the midpoint
+            chosen = [min(corridor_stops, key=lambda s: abs(route_progress(s) - 0.5))]
+        else:
+            # Divide route into num_stops_needed equal segments and pick the best
+            # stop in each segment (first by quality then by proximity to segment center)
+            chosen = []
+            segment = 1.0 / (num_stops_needed + 1)
+            for i in range(1, num_stops_needed + 1):
+                target = segment * i  # evenly spaced targets: 0.25, 0.5, 0.75 etc
+                bucket = [s for s in corridor_stops if s not in chosen]
+                if bucket:
+                    best = min(bucket, key=lambda s: abs(route_progress(s) - target))
+                    chosen.append(best)
+            chosen.sort(key=route_progress)
 
     # Build stops response
     stops_out = []
@@ -740,7 +871,8 @@ def api_plan():
         f"Never mention competitors. No bullet points — flowing sentences. Under 130 words."
     )
 
-    ai_plan = ask_ai(prompt, max_tokens=200)
+    plan_model_id = os.getenv("BEDROCK_PLAN_MODEL_ID", "us.anthropic.claude-haiku-4-5-20251001-v1:0")
+    ai_plan = ask_ai(prompt, max_tokens=200, model_id=plan_model_id)
     if not ai_plan:
         ai_plan = (
             f"Your {total_miles}-mile route from {from_} to {to_} has been optimized with "
@@ -794,6 +926,18 @@ def api_plan():
         route_coords = [[c[1], c[0]] for c in coords]
     except Exception:
         pass
+
+    # Store last plan so return loads and chat use the right route
+    _last_plan["from"]  = from_
+    _last_plan["to"]    = to_
+    _last_plan["stops"] = [{"name": s["name"], "city": s["city"],
+                            "lat": s.get("lat"), "lon": s.get("lon"),
+                            "parking_forecast_pct": s.get("parking_forecast_pct"),
+                            "shower_wait_min": s.get("shower_wait_min"),
+                            "food_available": s.get("food_available", "")}
+                           for s in chosen]
+    # Bust chat cache so next chat call uses the new route's stops
+    _chat_stops_cache["text"] = None
 
     return jsonify({
         "from":          from_,
@@ -885,18 +1029,60 @@ def api_stop_advice():
         )
     return jsonify({"advice": result, "stop_name": stop.get("name", "")})
 
+def _driver_intel(driver_id):
+    """Deterministic synthetic intelligence per driver: HOS, last stop, pilot streak."""
+    import hashlib
+    h = int(hashlib.md5(str(driver_id * 31 + 7).encode()).hexdigest(), 16)
+    hos_driven   = round((h % 90) / 10, 1)          # 0.0–9.0h
+    hos_remaining = max(0, round(11.0 - hos_driven, 1))
+    # last stop: 70% Pilot, 30% competitor
+    pilot_last = (h % 10) >= 3
+    competitors_list = ["Love's Travel Stop", "TA/Petro", "Flying J (competitor)", "Speedway", "Casey's"]
+    last_stop_name = "Pilot Flying J" if pilot_last else competitors_list[h % len(competitors_list)]
+    # missed savings: competitor drivers who could have saved ~$12-28/stop
+    missed = 0 if pilot_last else 12 + (h % 17)
+    # pilot stop streak (consecutive Pilot stops)
+    streak = (h >> 4) % 8 if pilot_last else 0
+    # miles from a demo load origin (Nashville) — rough synthetic
+    cities_miles = {"Columbus, OH": 310, "Detroit, MI": 520, "Memphis, TN": 210,
+                    "Charlotte, NC": 410, "Atlanta, GA": 250, "Kansas City, MO": 480,
+                    "Dallas, TX": 670, "Houston, TX": 780, "Chicago, IL": 470,
+                    "St. Louis, MO": 310, "Louisville, KY": 175, "Cincinnati, OH": 280}
+    return {
+        "hos_driven":   hos_driven,
+        "hos_remaining": hos_remaining,
+        "last_stop":    last_stop_name,
+        "last_stop_pilot": pilot_last,
+        "missed_savings": missed,
+        "pilot_streak": streak,
+    }
+
 @app.route("/api/fleet")
 def api_fleet():
-    """Return fleet summary: all drivers with loyalty data from Databricks."""
+    """Return fleet summary: all drivers with loyalty + intelligence data."""
     fleet = []
+    drivers = DRIVERS[:15]
     try:
         from databricks_client import get_driver_loyalty
-        # Pull real loyalty data for each driver in our demo fleet
-        for d in DRIVERS[:15]:
-            loy = get_driver_loyalty(d["id"])
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        # Fetch all loyalty data in parallel — avoids 15 sequential Databricks calls
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            loy_futures = {ex.submit(get_driver_loyalty, d["id"]): d for d in drivers}
+            loy_map = {}
+            for fut in as_completed(loy_futures):
+                d = loy_futures[fut]
+                try:
+                    loy_map[d["id"]] = fut.result()
+                except Exception:
+                    loy_map[d["id"]] = None
+        for d in drivers:
+            loy   = loy_map.get(d["id"])
+            intel = _driver_intel(d["id"])
             entry = {
                 "id":          d["id"],
                 "name":        d["name"],
+                "current_location": d.get("current_location", "Unknown"),
+                "destination": d.get("destination", "Unknown"),
                 "route":       d.get("current_location", "Unknown") + " → " + d.get("destination", "Unknown"),
                 "fuel_pct":    min(100, round(d.get("fuel_remaining_miles", 300) / 6)),
                 "fuel_miles":  d.get("fuel_remaining_miles", 300),
@@ -904,6 +1090,7 @@ def api_fleet():
                 "loyalty_tier":  loy["loyalty_tier"]  if loy else d.get("loyalty_tier", "Standard"),
                 "total_gallons": loy["total_gallons"]  if loy else 0,
                 "total_visits":  loy["total_visits"]   if loy else 0,
+                **intel,
             }
             fleet.append(entry)
     except Exception as e:
@@ -911,25 +1098,116 @@ def api_fleet():
         fleet = [
             {
                 "id": d["id"], "name": d["name"],
+                "current_location": d.get("current_location",""),
+                "destination": d.get("destination",""),
                 "route": d.get("current_location","") + " → " + d.get("destination",""),
                 "fuel_pct": min(100, round(d.get("fuel_remaining_miles",300)/6)),
                 "fuel_miles": d.get("fuel_remaining_miles", 300),
                 "status": "fuel_risk" if d.get("fuel_remaining_miles",999) < 150 else "ok",
                 "loyalty_tier": d.get("loyalty_tier","Standard"),
                 "total_gallons": 0, "total_visits": 0,
+                **_driver_intel(d["id"]),
             }
-            for d in DRIVERS[:15]
+            for d in drivers
         ]
 
-    at_risk = [f for f in fleet if f["status"] == "fuel_risk"]
+    at_risk    = [f for f in fleet if f["status"] == "fuel_risk"]
+    competitor = [f for f in fleet if not f.get("last_stop_pilot", True)]
+    total_missed = sum(f.get("missed_savings", 0) for f in competitor)
+
     return jsonify({
         "drivers": fleet,
         "summary": {
             "total":    len(fleet),
             "at_risk":  len(at_risk),
             "on_route": len(fleet),
+            "competitor_stops": len(competitor),
+            "missed_savings":   total_missed,
         }
     })
+
+
+@app.route("/api/fleet/suggest", methods=["POST"])
+def api_fleet_suggest():
+    """Rank drivers for a load based on location proximity, HOS, fuel, and Pilot alignment."""
+    body = request.json or {}
+    load_origin = body.get("origin", "Nashville, TN")
+    load_dest   = body.get("destination", "Dallas, TX")
+    load_miles  = int(body.get("miles", 650))
+
+    # Get current fleet (reuse same logic without a full HTTP round-trip)
+    fleet = []
+    for d in DRIVERS[:15]:
+        intel = _driver_intel(d["id"])
+        fleet.append({
+            "id": d["id"], "name": d["name"],
+            "current_location": d.get("current_location",""),
+            "fuel_miles": d.get("fuel_remaining_miles", 300),
+            "fuel_pct": min(100, round(d.get("fuel_remaining_miles",300)/6)),
+            "loyalty_tier": d.get("loyalty_tier","Standard"),
+            **intel,
+        })
+
+    # Score each driver (higher = better fit)
+    def score(d):
+        s = 0
+        # HOS headroom — need at least 4h for a meaningful leg
+        if d["hos_remaining"] >= 8:   s += 30
+        elif d["hos_remaining"] >= 5: s += 15
+        elif d["hos_remaining"] >= 3: s += 5
+        # Fuel — enough to reach first Pilot stop (~150mi min)
+        if d["fuel_miles"] >= 300:    s += 25
+        elif d["fuel_miles"] >= 150:  s += 10
+        # Pilot alignment — prefer drivers overdue for a Pilot stop
+        if not d["last_stop_pilot"]:  s += 20   # overdue — assigning nudges them back
+        elif d["pilot_streak"] >= 3:  s += 10   # loyal
+        # Loyalty tier bonus
+        tier = (d["loyalty_tier"] or "").lower()
+        if "elite" in tier or "platinum" in tier: s += 10
+        elif "gold" in tier:                      s += 5
+        return s
+
+    ranked = sorted(fleet, key=score, reverse=True)[:5]
+
+    def why(d):
+        reasons = []
+        if d["hos_remaining"] >= 8:
+            reasons.append(f"{d['hos_remaining']}h HOS remaining — full day available")
+        elif d["hos_remaining"] >= 5:
+            reasons.append(f"{d['hos_remaining']}h HOS remaining — fits this load")
+        else:
+            reasons.append(f"⚠️ Only {d['hos_remaining']}h HOS left — short legs only")
+        if d["fuel_miles"] >= 300:
+            reasons.append(f"⛽ {d['fuel_miles']}mi fuel — no stop needed before pickup")
+        elif d["fuel_miles"] >= 150:
+            reasons.append(f"⛽ {d['fuel_miles']}mi fuel — one Pilot stop en route")
+        else:
+            reasons.append(f"🚨 {d['fuel_miles']}mi fuel — needs fuel before pickup")
+        if not d["last_stop_pilot"]:
+            reasons.append(f"Last stop was {d['last_stop']} — route passes 2 Pilot locations")
+        elif d["pilot_streak"] >= 3:
+            reasons.append(f"🏆 {d['pilot_streak']}-stop Pilot streak — loyalty on track")
+        return reasons
+
+    suggestions = []
+    for i, d in enumerate(ranked):
+        suggestions.append({
+            "rank":    i + 1,
+            "id":      d["id"],
+            "name":    d["name"],
+            "location": d["current_location"],
+            "hos_remaining": d["hos_remaining"],
+            "fuel_miles":    d["fuel_miles"],
+            "last_stop_pilot": d["last_stop_pilot"],
+            "last_stop":     d["last_stop"],
+            "loyalty_tier":  d["loyalty_tier"],
+            "score":   score(d),
+            "reasons": why(d),
+            "pilot_stops_on_route": 2 if load_miles > 400 else 1,
+            "estimated_savings": round(load_miles / 6.5 * 0.097, 2),
+        })
+
+    return jsonify({"suggestions": suggestions, "load_origin": load_origin, "load_destination": load_dest})
 
 # ── Maintenance data (synthetic — would come from telematics in production) ───
 import random, hashlib
@@ -1265,10 +1543,8 @@ def api_loads_assign():
 @app.route("/api/competitors")
 def api_competitors():
     """
-    Demo competitor truck stops along Nashville→Atlanta (I-24/I-75 corridor).
-    Prices are representative retail diesel — updated to reflect realistic spread
-    vs Pilot fleet pricing. Each competitor entry includes the nearest Pilot stop
-    and what Pilot offers that the competitor does not.
+    Route-aware competitor truck stops. Selects the corridor that best matches
+    _last_plan (from/to). Falls back to I-40W (Nashville→Dallas) if no plan active.
     """
     try:
         from databricks_client import get_fuel_prices
@@ -1278,59 +1554,255 @@ def api_competitors():
         pilot_fleet  = 3.448
         pilot_retail = 3.545
 
-    competitors = [
+    # Determine corridor from last plan destination
+    dest = (_last_plan.get("to") or "").lower()
+    frm  = (_last_plan.get("from") or "").lower()
+    if any(k in dest for k in ["miami", "orlando", "tampa", "jacksonville", "fort pierce", "ocala", "florida", " fl"]):
+        corridor = "i75s"  # I-75 South to Florida
+    elif any(k in dest for k in ["atlanta", "ga", "chattanooga"]) and "knoxville" not in frm:
+        corridor = "i75"
+    elif any(k in dest for k in ["chicago", "indianapolis", "indiana", "illinois"]):
+        corridor = "i65"
+    elif any(k in frm for k in ["knoxville"]):
+        corridor = "i40w"  # Knoxville → Dallas goes through Nashville on I-40W
+    else:
+        corridor = "i40w"  # default: Nashville→Memphis→Dallas
+
+    if corridor == "i75s":
+        # Nashville → Miami: I-24 → I-75 → Florida Turnpike
+        competitors = [
+            {
+                "id": "loves_valdosta",
+                "brand": "Love's",
+                "name": "Love's Travel Stop #445",
+                "city": "Valdosta", "state": "GA",
+                "lat": 30.845, "lon": -83.292,
+                "mile_marker": 490,
+                "diesel_price": round(pilot_retail + 0.09, 3),
+                "amenities": ["Subway", "Parking", "Showers", "CAT Scale"],
+                "missing_vs_pilot": ["Fleet pricing", "MyRewards points", "Mobile fueling"],
+                "nearest_pilot": {
+                    "name": "Pilot Valdosta #219",
+                    "city": "Valdosta, GA",
+                    "miles_away": 4,
+                    "diesel_price": pilot_fleet,
+                    "perks": [f"Fleet price saves ${round(0.09+pilot_retail-pilot_fleet,2)}/gal vs Love's", "2× MyRewards points", "Shower in 10 min avg"],
+                },
+            },
+            {
+                "id": "ta_petro_lake_city",
+                "brand": "TA Petro",
+                "name": "TA Petro #331",
+                "city": "Lake City", "state": "FL",
+                "lat": 30.197, "lon": -82.651,
+                "mile_marker": 572,
+                "diesel_price": round(pilot_retail + 0.13, 3),
+                "amenities": ["Iron Skillet", "Parking", "Showers", "Laundry"],
+                "missing_vs_pilot": ["Fleet pricing", "Loyalty program", "Mobile app offers"],
+                "nearest_pilot": {
+                    "name": "Pilot Lake City #147",
+                    "city": "Lake City, FL",
+                    "miles_away": 2,
+                    "diesel_price": pilot_fleet,
+                    "perks": [f"Fleet price saves ${round(pilot_retail+0.13-pilot_fleet,2)}/gal vs TA", "Active offer: $29 bonus points", "82% parking available"],
+                },
+            },
+            {
+                "id": "bp_orlando",
+                "brand": "BP",
+                "name": "BP Truck Plaza",
+                "city": "Orlando", "state": "FL",
+                "lat": 28.551, "lon": -81.391,
+                "mile_marker": 718,
+                "diesel_price": round(pilot_retail + 0.06, 3),
+                "amenities": ["Hot food", "Parking"],
+                "missing_vs_pilot": ["Fleet pricing", "Showers", "Loyalty rewards", "CAT Scale"],
+                "nearest_pilot": {
+                    "name": "Pilot Orlando #388",
+                    "city": "Orlando, FL",
+                    "miles_away": 3,
+                    "diesel_price": pilot_fleet,
+                    "perks": [f"Fleet price saves ${round(pilot_retail+0.06-pilot_fleet,2)}/gal vs BP", "Full-service showers", "MyRewards 2× points"],
+                },
+            },
+        ]
+    elif corridor == "i75":
+        # Nashville → Atlanta: I-24/I-75
+        competitors = [
+            {
+                "id": "loves_murfreesboro",
+                "brand": "Love's",
+                "name": "Love's Travel Stop #318",
+                "city": "Murfreesboro", "state": "TN",
+                "lat": 35.8456, "lon": -86.3903,
+                "mile_marker": 78,
+                "diesel_price": round(pilot_retail + 0.08, 3),
+                "amenities": ["Subway", "Parking", "Showers", "CAT Scale"],
+                "missing_vs_pilot": ["Fleet pricing", "MyRewards points", "2x loyalty multiplier", "Mobile fueling"],
+                "nearest_pilot": {
+                    "name": "Pilot Murfreesboro #312",
+                    "city": "Murfreesboro, TN",
+                    "miles_away": 5,
+                    "diesel_price": pilot_fleet,
+                    "perks": [f"Fleet price saves ${round(0.08+pilot_retail-pilot_fleet,2)}/gal vs Love's", "2× MyRewards points", "Shower in 8 min avg", "Pilot Coffee"],
+                },
+            },
+            {
+                "id": "ta_petro_chattanooga",
+                "brand": "TA Petro",
+                "name": "TA Petro #187",
+                "city": "Chattanooga", "state": "TN",
+                "lat": 35.0456, "lon": -85.3097,
+                "mile_marker": 148,
+                "diesel_price": round(pilot_retail + 0.12, 3),
+                "amenities": ["Iron Skillet", "Parking", "Showers", "Laundry"],
+                "missing_vs_pilot": ["Fleet pricing", "Loyalty program", "Mobile app offers", "CAT Scale"],
+                "nearest_pilot": {
+                    "name": "Pilot Chattanooga #198",
+                    "city": "Chattanooga, TN",
+                    "miles_away": 4,
+                    "diesel_price": pilot_fleet,
+                    "perks": [f"Fleet price saves ${round(pilot_retail+0.12-pilot_fleet,2)}/gal vs TA", "Active offer: $29 bonus points", "CAT Scale on-site", "78% parking available"],
+                },
+            },
+            {
+                "id": "bp_calhoun",
+                "brand": "BP",
+                "name": "BP Truck Plaza",
+                "city": "Calhoun", "state": "GA",
+                "lat": 34.5023, "lon": -84.9513,
+                "mile_marker": 215,
+                "diesel_price": round(pilot_retail + 0.05, 3),
+                "amenities": ["Hot food", "Parking"],
+                "missing_vs_pilot": ["Fleet pricing", "Showers", "Loyalty rewards", "CAT Scale", "Mobile fueling"],
+                "nearest_pilot": {
+                    "name": "Pilot Calhoun #312",
+                    "city": "Calhoun, GA",
+                    "miles_away": 2,
+                    "diesel_price": pilot_fleet,
+                    "perks": [f"Fleet price saves ${round(pilot_retail+0.05-pilot_fleet,2)}/gal vs BP", "Full-service showers", "MyRewards 2× points", "DoorDash delivery inside"],
+                },
+            },
+        ]
+    elif corridor == "i65":
+        # Chicago → Nashville: I-65
+        competitors = [
+            {
+                "id": "loves_gary",
+                "brand": "Love's",
+                "name": "Love's Travel Stop #601",
+                "city": "Gary", "state": "IN",
+                "lat": 41.5934, "lon": -87.3464,
+                "mile_marker": 25,
+                "diesel_price": round(pilot_retail + 0.09, 3),
+                "amenities": ["Subway", "Parking", "Showers"],
+                "missing_vs_pilot": ["Fleet pricing", "MyRewards points", "CAT Scale", "Mobile fueling"],
+                "nearest_pilot": {
+                    "name": "Pilot Gary #145",
+                    "city": "Gary, IN",
+                    "miles_away": 3,
+                    "diesel_price": pilot_fleet,
+                    "perks": [f"Fleet price saves ${round(0.09+pilot_retail-pilot_fleet,2)}/gal vs Love's", "2× MyRewards points", "CAT Scale on-site"],
+                },
+            },
+            {
+                "id": "ta_petro_indianapolis",
+                "brand": "TA Petro",
+                "name": "TA Petro #92",
+                "city": "Indianapolis", "state": "IN",
+                "lat": 39.7684, "lon": -86.1581,
+                "mile_marker": 155,
+                "diesel_price": round(pilot_retail + 0.11, 3),
+                "amenities": ["Iron Skillet", "Parking", "Showers", "Laundry"],
+                "missing_vs_pilot": ["Fleet pricing", "Loyalty program", "Mobile app offers"],
+                "nearest_pilot": {
+                    "name": "Pilot Indianapolis #267",
+                    "city": "Indianapolis, IN",
+                    "miles_away": 2,
+                    "diesel_price": pilot_fleet,
+                    "perks": [f"Fleet price saves ${round(pilot_retail+0.11-pilot_fleet,2)}/gal vs TA", "Active offer: $25 bonus points", "77% parking available"],
+                },
+            },
+            {
+                "id": "bp_bowling_green",
+                "brand": "BP",
+                "name": "BP Truck Stop",
+                "city": "Bowling Green", "state": "KY",
+                "lat": 36.9903, "lon": -86.4436,
+                "mile_marker": 310,
+                "diesel_price": round(pilot_retail + 0.06, 3),
+                "amenities": ["Hot food", "Parking"],
+                "missing_vs_pilot": ["Fleet pricing", "Showers", "Loyalty rewards", "CAT Scale"],
+                "nearest_pilot": {
+                    "name": "Pilot Bowling Green #188",
+                    "city": "Bowling Green, KY",
+                    "miles_away": 3,
+                    "diesel_price": pilot_fleet,
+                    "perks": [f"Fleet price saves ${round(pilot_retail+0.06-pilot_fleet,2)}/gal vs BP", "Full-service showers", "MyRewards 2× points"],
+                },
+            },
+        ]
+    else:
+        # I-40 West: Nashville → Memphis → Dallas (default)
+        competitors = [
+        # I-40 West: Nashville → Memphis corridor
         {
-            "id": "loves_manchester",
+            "id": "loves_jackson",
             "brand": "Love's",
-            "name": "Love's Travel Stop #423",
-            "city": "Manchester", "state": "TN",
-            "mile_marker": 110,
-            "diesel_price": round(pilot_retail + 0.08, 3),  # ~$0.08 above Pilot retail
+            "name": "Love's Travel Stop #512",
+            "city": "Jackson", "state": "TN",
+            "lat": 35.6145, "lon": -88.8139,
+            "mile_marker": 82,
+            "diesel_price": round(pilot_retail + 0.08, 3),
             "amenities": ["Subway", "Parking", "Showers", "CAT Scale"],
             "missing_vs_pilot": ["Fleet pricing", "MyRewards points", "2x loyalty multiplier", "Mobile fueling"],
             "nearest_pilot": {
-                "name": "Pilot Cookeville #241",
-                "city": "Cookeville, TN",
-                "miles_away": 12,
+                "name": "Pilot Jackson #198",
+                "city": "Jackson, TN",
+                "miles_away": 3,
                 "diesel_price": pilot_fleet,
-                "perks": ["Fleet price saves $0.18/gal vs Love's", "2× MyRewards points", "Pilot Coffee", "Shower in 8 min avg"],
+                "perks": [f"Fleet price saves ${round(0.08+pilot_retail-pilot_fleet,2)}/gal vs Love's", "2× MyRewards points", "Pilot Coffee", "Shower in 8 min avg"],
             },
         },
+        # I-40 West: Memphis area
         {
-            "id": "ta_petro_chattanooga",
+            "id": "ta_petro_memphis",
             "brand": "TA Petro",
-            "name": "TA Petro #187",
-            "city": "Chattanooga", "state": "TN",
-            "mile_marker": 175,
-            "diesel_price": round(pilot_retail + 0.12, 3),  # ~$0.12 above Pilot retail
+            "name": "TA Petro #214",
+            "city": "Memphis", "state": "TN",
+            "lat": 35.1495, "lon": -90.0490,
+            "mile_marker": 187,
+            "diesel_price": round(pilot_retail + 0.12, 3),
             "amenities": ["Iron Skillet", "Parking", "Showers", "Laundry"],
             "missing_vs_pilot": ["Fleet pricing", "Loyalty program", "Mobile app offers", "CAT Scale"],
             "nearest_pilot": {
-                "name": "Pilot Chattanooga #198",
-                "city": "Chattanooga, TN",
-                "miles_away": 4,
+                "name": "Pilot Memphis #412",
+                "city": "Memphis, TN",
+                "miles_away": 2,
                 "diesel_price": pilot_fleet,
                 "perks": [f"Fleet price saves ${round(pilot_retail+0.12-pilot_fleet,2)}/gal vs TA", "Active offer: $29 bonus points", "CAT Scale on-site", "78% parking available"],
             },
         },
+        # I-40 West: Little Rock AR
         {
-            "id": "bp_calhoun",
+            "id": "bp_little_rock",
             "brand": "BP",
             "name": "BP Truck Plaza",
-            "city": "Calhoun", "state": "GA",
-            "mile_marker": 312,
+            "city": "Little Rock", "state": "AR",
+            "lat": 34.7465, "lon": -92.2896,
+            "mile_marker": 367,
             "diesel_price": round(pilot_retail + 0.05, 3),
             "amenities": ["Hot food", "Parking"],
             "missing_vs_pilot": ["Fleet pricing", "Showers", "Loyalty rewards", "CAT Scale", "Mobile fueling"],
             "nearest_pilot": {
-                "name": "Pilot Calhoun #312",
-                "city": "Calhoun, GA",
-                "miles_away": 2,
+                "name": "Pilot Little Rock #287",
+                "city": "Little Rock, AR",
+                "miles_away": 4,
                 "diesel_price": pilot_fleet,
                 "perks": [f"Fleet price saves ${round(pilot_retail+0.05-pilot_fleet,2)}/gal vs BP", "Full-service showers", "MyRewards 2× points", "DoorDash delivery inside"],
             },
         },
-    ]
+        ]  # end i40w competitors
 
     pilot_advantage = round(
         sum(c["diesel_price"] - pilot_fleet for c in competitors) / len(competitors), 3
@@ -1394,32 +1866,70 @@ def logo():
 # Key insight: we can show NET earnings = gross rate − Pilot fuel cost on the
 # return lane, which only RoadIQ can calculate accurately.
 
-_RETURN_LOADS = [
-    {
-        "id": "RL001", "origin": "Atlanta, GA", "destination": "Nashville, TN",
-        "cargo": "Consumer Goods", "miles": 248,
-        "gross_rate": 920, "fuel_gal": 37, "window_closes_min": 180,
-        "urgency": "high", "loads_competing": 4,
-    },
-    {
-        "id": "RL002", "origin": "Atlanta, GA", "destination": "Charlotte, NC",
-        "cargo": "Auto Parts", "miles": 244,
-        "gross_rate": 1040, "fuel_gal": 36, "window_closes_min": 340,
-        "urgency": "medium", "loads_competing": 2,
-    },
-    {
-        "id": "RL003", "origin": "Atlanta, GA", "destination": "Memphis, TN",
-        "cargo": "Refrigerated", "miles": 393,
-        "gross_rate": 1480, "fuel_gal": 59, "window_closes_min": 480,
-        "urgency": "low", "loads_competing": 7,
-    },
+# Return load templates keyed by destination city prefix (lowercase).
+# Each entry is a list of loads originating FROM that city.
+_RETURN_LOADS_BY_CITY = {
+    "dallas": [
+        {"id": "RL001", "origin": "Dallas, TX", "destination": "Nashville, TN",
+         "cargo": "Auto Parts", "miles": 670,
+         "gross_rate": 2100, "fuel_gal": 101, "window_closes_min": 240,
+         "urgency": "high", "loads_competing": 3},
+        {"id": "RL002", "origin": "Dallas, TX", "destination": "Atlanta, GA",
+         "cargo": "Consumer Goods", "miles": 781,
+         "gross_rate": 2400, "fuel_gal": 118, "window_closes_min": 420,
+         "urgency": "medium", "loads_competing": 5},
+        {"id": "RL003", "origin": "Dallas, TX", "destination": "Chicago, IL",
+         "cargo": "Refrigerated", "miles": 921,
+         "gross_rate": 2950, "fuel_gal": 139, "window_closes_min": 600,
+         "urgency": "low", "loads_competing": 2},
+    ],
+    "atlanta": [
+        {"id": "RL001", "origin": "Atlanta, GA", "destination": "Nashville, TN",
+         "cargo": "Consumer Goods", "miles": 248,
+         "gross_rate": 920, "fuel_gal": 37, "window_closes_min": 180,
+         "urgency": "high", "loads_competing": 4},
+        {"id": "RL002", "origin": "Atlanta, GA", "destination": "Charlotte, NC",
+         "cargo": "Auto Parts", "miles": 244,
+         "gross_rate": 1040, "fuel_gal": 36, "window_closes_min": 340,
+         "urgency": "medium", "loads_competing": 2},
+        {"id": "RL003", "origin": "Atlanta, GA", "destination": "Memphis, TN",
+         "cargo": "Refrigerated", "miles": 393,
+         "gross_rate": 1480, "fuel_gal": 59, "window_closes_min": 480,
+         "urgency": "low", "loads_competing": 7},
+    ],
+    "nashville": [
+        {"id": "RL001", "origin": "Nashville, TN", "destination": "Atlanta, GA",
+         "cargo": "Automotive", "miles": 248,
+         "gross_rate": 890, "fuel_gal": 37, "window_closes_min": 200,
+         "urgency": "high", "loads_competing": 3},
+        {"id": "RL002", "origin": "Nashville, TN", "destination": "Dallas, TX",
+         "cargo": "General Freight", "miles": 670,
+         "gross_rate": 2050, "fuel_gal": 101, "window_closes_min": 360,
+         "urgency": "medium", "loads_competing": 6},
+        {"id": "RL003", "origin": "Nashville, TN", "destination": "Chicago, IL",
+         "cargo": "Refrigerated", "miles": 476,
+         "gross_rate": 1600, "fuel_gal": 72, "window_closes_min": 480,
+         "urgency": "low", "loads_competing": 4},
+    ],
+}
+# Generic fallback loads — used when destination city not in the map above
+_RETURN_LOADS_GENERIC = [
+    {"id": "RL001", "cargo": "General Freight", "miles": 400,
+     "gross_rate": 1200, "fuel_gal": 60, "window_closes_min": 300,
+     "urgency": "medium", "loads_competing": 4},
+    {"id": "RL002", "cargo": "Refrigerated", "miles": 550,
+     "gross_rate": 1800, "fuel_gal": 83, "window_closes_min": 480,
+     "urgency": "low", "loads_competing": 3},
+    {"id": "RL003", "cargo": "Auto Parts", "miles": 300,
+     "gross_rate": 950, "fuel_gal": 45, "window_closes_min": 180,
+     "urgency": "high", "loads_competing": 6},
 ]
 
 @app.route("/api/return_loads")
 def api_return_loads():
     """
-    Returns ranked return-load opportunities from the driver's current
-    destination, with net earnings calculated using real Pilot fuel prices.
+    Returns ranked return-load opportunities from the driver's actual destination
+    (stored in _last_plan), with net earnings using real Pilot fuel prices.
     """
     from databricks_client import get_fuel_prices
     try:
@@ -1428,8 +1938,17 @@ def api_return_loads():
     except Exception:
         pilot_price = 3.45
 
+    # Pick loads for the actual destination city
+    dest = (_last_plan.get("to") or "").lower()
+    city_key = next((k for k in _RETURN_LOADS_BY_CITY if k in dest), None)
+    base_loads = _RETURN_LOADS_BY_CITY[city_key] if city_key else [
+        {**l, "origin": _last_plan.get("to", "Your Destination"),
+         "destination": _last_plan.get("from", "Origin")}
+        for l in _RETURN_LOADS_GENERIC
+    ]
+
     results = []
-    for load in _RETURN_LOADS:
+    for load in base_loads:
         fuel_cost = round(load["fuel_gal"] * pilot_price, 2)
         net_earn  = round(load["gross_rate"] - fuel_cost, 2)
         cpm       = round(load["gross_rate"] / load["miles"], 2)  # cents per mile (gross)
@@ -1459,7 +1978,8 @@ def api_return_loads():
 
 @app.route("/images/<path:filename>")
 def serve_image(filename):
-    return send_from_directory(_base, filename)
+    images_dir = os.path.join(_base, "static", "images")
+    return send_from_directory(images_dir, filename)
 
 @app.route("/tiles/<int:z>/<int:x>/<int:y>.png")
 def proxy_tile(z, x, y):
