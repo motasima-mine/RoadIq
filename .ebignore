@@ -1,0 +1,37 @@
+# Same intent as .gitignore, applied to `eb deploy` uploads.
+# .env MUST stay excluded — Beanstalk env vars are set via the console/CLI
+# (eb setenv or environment properties), not by uploading the .env file.
+.env
+*.env.local
+
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+
+.vscode/
+.idea/
+*.swp
+*.swo
+
+.DS_Store
+Thumbs.db
+
+.streamlit/secrets.toml
+
+.kiro/settings/
+
+*.log
+C:Temproadiq.log
+
+.git/
+.github/
+
+# Legacy Streamlit app + voice prototype not needed for the Beanstalk deploy
+app.py
+voice_server.py
+static/voice.html
+static/voice-worklet.js

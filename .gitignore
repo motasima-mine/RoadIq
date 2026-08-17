@@ -34,3 +34,6 @@ C:Temproadiq.log
 # Local test/discovery scripts (may reference secrets during dev)
 scripts/discover_*.py
 scripts/test_databricks.py
+
+# Elastic Beanstalk CLI local config (abandoned path — Render/Railway used instead)
+.elasticbeanstalk/
